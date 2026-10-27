@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+title: "Know Your Agent"
+version: 0.1.0
+date-released: 2026-10-26
+authors:
+  - given-names: Rishabh
+    family-names: Pande
+    orcid: "https://orcid.org/0009-0004-1901-7109"
+repository-code: "https://github.com/RishabhPande/know-your-agent"
+abstract: "Verifiable identity for AI agent transactions: Ed25519-signed, scoped, session-limited, revocable credentials that fail closed on anything unverifiable."
