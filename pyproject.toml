@@ -1,0 +1,21 @@
+[project]
+name = "know-your-agent"
+version = "0.1.0"
+description = "Toolkit for verifiable AI agent identity: delegation, revocation, and audit trail"
+readme = "README.md"
+authors = [{name = "Rishabh Pande"}]
+license = {text = "MIT"}
+dependencies = ["cryptography>=41.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["kya*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
