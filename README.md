@@ -1,5 +1,8 @@
 # Know Your Agent (KYA)
 
+[![Tests](https://github.com/RishabhPande/know-your-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/RishabhPande/know-your-agent/actions/workflows/tests.yml)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/RishabhPande/know-your-agent)
+
 AI agents now shop, book, and pay on behalf of humans, but fraud systems still
 see only a human account behind the transaction. When an agent acts, nobody can
 answer three questions cryptographically: which agent is this, who authorized
@@ -119,7 +122,7 @@ An agent may delegate a subset of its authority to a sub-agent with
 `delegate_credential()`. The delegated credential links back to its parent
 via `delegated_from` (parent `credential_id`) and `delegator_agent_id`
 (parent `agent_id`), keeps the same principal and issuer, and must narrow
-the scope and shrink the session window — `delegate_credential()` raises
+the scope and shrink the session window - `delegate_credential()` raises
 `ValueError` on any widening. `verify_chain()` walks `[root, ..., leaf]`
 and fails closed: every link must verify individually, links must connect,
 the principal must not change, windows may only shrink, and scopes may
