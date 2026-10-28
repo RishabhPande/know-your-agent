@@ -1,4 +1,4 @@
-"""Know Your Agent: the public API surface (v0.1)."""
+"""Know Your Agent: the public API surface (v0.1 + delegation chains)."""
 
 from .credentials import (
     ALGORITHM,
@@ -18,6 +18,17 @@ from .credentials import (
     public_key_to_pem,
     verify_credential,
 )
+from .delegation import (
+    REASON_BAD_CHAIN,
+    REASON_PRINCIPAL_MISMATCH,
+    REASON_SCOPE_WIDENED,
+    REASON_WINDOW_WIDENED,
+    authorize_purchase_chain,
+    delegate_credential,
+    scope_is_subset,
+    verify_chain,
+    window_is_subset,
+)
 from .policy import (
     REASON_ALLOWED,
     REASON_AMOUNT_EXCEEDS_SCOPE,
@@ -32,6 +43,7 @@ __all__ = [
     "ALGORITHM",
     "REASON_ALLOWED",
     "REASON_AMOUNT_EXCEEDS_SCOPE",
+    "REASON_BAD_CHAIN",
     "REASON_BAD_SCOPE",
     "REASON_BAD_SIGNATURE",
     "REASON_CATEGORY_NOT_ALLOWED",
@@ -41,15 +53,23 @@ __all__ = [
     "REASON_NOT_YET_VALID",
     "REASON_NO_PURCHASE_SCOPE",
     "REASON_OK",
+    "REASON_PRINCIPAL_MISMATCH",
     "REASON_REVOKED",
+    "REASON_SCOPE_WIDENED",
     "REASON_UNSUPPORTED_ALGORITHM",
+    "REASON_WINDOW_WIDENED",
     "authorize_purchase",
+    "authorize_purchase_chain",
     "check_purchase",
+    "delegate_credential",
     "generate_keypair",
     "issue_credential",
     "load_private_key_pem",
     "load_public_key_pem",
     "private_key_to_pem",
     "public_key_to_pem",
+    "scope_is_subset",
+    "verify_chain",
     "verify_credential",
+    "window_is_subset",
 ]

@@ -33,6 +33,9 @@ Scope: up to $50 in electronics. Session: 1 hour.
 3. $30 groceries purchase: REJECTED (category_not_allowed)
 4. $30 electronics purchase after revocation: REJECTED (revoked)
 5. Tampered credential (agent id changed): REJECTED (bad_signature)
+6. Delegated chain (root -> sub-agent, $20): ACCEPTED (ok)
+7. $15 electronics purchase via sub-agent: ACCEPTED (allowed)
+8. $30 electronics purchase via sub-agent (over leaf limit): REJECTED (amount_exceeds_scope)
 ```
 
 Run the tests with:
@@ -110,6 +113,39 @@ revocation management arrives in a later iteration (see below).
 or a scope reason: `amount_exceeds_scope`, `category_not_allowed`,
 `no_purchase_scope`, `invalid_amount`.
 
+## Delegation chains
+
+An agent may delegate a subset of its authority to a sub-agent with
+`delegate_credential()`. The delegated credential links back to its parent
+via `delegated_from` (parent `credential_id`) and `delegator_agent_id`
+(parent `agent_id`), keeps the same principal and issuer, and must narrow
+the scope and shrink the session window — `delegate_credential()` raises
+`ValueError` on any widening. `verify_chain()` walks `[root, ..., leaf]`
+and fails closed: every link must verify individually, links must connect,
+the principal must not change, windows may only shrink, and scopes may
+only narrow, with reasons `bad_chain`, `principal_mismatch`,
+`window_widened`, and `scope_widened`. `authorize_purchase_chain()`
+verifies the chain and checks the purchase against the leaf's scope, so a
+$30 purchase that the root allows is still rejected when the leaf's limit
+is $20.
+
+```python
+from kya import delegate_credential, verify_chain, authorize_purchase_chain
+
+delegated = delegate_credential(
+    private_key,
+    credential,
+    agent_id="agent-sub-01",
+    scope={"max_amount_usd": 20.0, "categories": ["electronics"]},
+    not_before="2026-10-27T00:00:00Z",
+    not_after="2026-10-27T00:30:00Z",
+)
+ok, reason = verify_chain(public_key, [credential, delegated])
+ok, reason = authorize_purchase_chain(
+    public_key, [credential, delegated], 15.0, "electronics"
+)
+```
+
 ## Security notes
 
 - Fail closed, everywhere: unverifiable input is rejected, never accepted
@@ -123,18 +159,16 @@ or a scope reason: `amount_exceeds_scope`, `category_not_allowed`,
 ## What comes next
 
 v0.1 is the core: credential model, issue and verify, purchase policy, demo,
-and tests. The next iterations, in order:
+and tests. Delegation chains shipped next (see above). The remaining
+iterations, in order:
 
-1. Delegation chains: an agent delegates a subset of its scope to a
-   sub-agent; verification walks the chain and enforces that scope only
-   narrows, never widens.
-2. Revocation management: a maintained revocation list with a revoke API
+1. Revocation management: a maintained revocation list with a revoke API
    and verification-time lookup.
-3. Audit trail: a signed, append-only log of issuance, verification, and
+2. Audit trail: a signed, append-only log of issuance, verification, and
    revocation, so a disputed transaction can be reconstructed.
-4. FastAPI demo service: a verify endpoint plus a tiny merchant checkout
+3. FastAPI demo service: a verify endpoint plus a tiny merchant checkout
    example.
-5. Benchmark hook: score a fraud model on agent traffic using KYA verdicts
+4. Benchmark hook: score a fraud model on agent traffic using KYA verdicts
    as labels.
 
 ## License

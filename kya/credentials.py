@@ -8,8 +8,12 @@ Verification fails closed: any problem yields (False, reason) instead of
 raising, except for programmer-level misuse (wrong key types, invalid issue
 arguments), which raises immediately so bugs surface during development.
 
-What v0.1 does NOT include (coming in later iterations):
-- delegation chains (an agent delegating a subset of scope to a sub-agent)
+Delegation chains live in delegation.py: a delegated credential carries
+``delegated_from`` (the parent credential_id) and ``delegator_agent_id``
+(the parent agent_id), and verify_chain() walks the chain enforcing that
+scope only narrows and the session window only shrinks.
+
+What later iterations still do NOT include:
 - revocation management (a maintained revocation list with a revoke API)
 - an audit trail (a signed append-only log of issuance and verification)
 
@@ -143,6 +147,8 @@ def issue_credential(
     not_after,
     issuer="kya",
     credential_id=None,
+    delegated_from=None,
+    delegator_agent_id=None,
 ):
     """Issue a signed agent credential (a plain JSON-serializable dict).
 
@@ -156,6 +162,15 @@ def issue_credential(
         issuer: identifier of the issuer (default "kya").
         credential_id: optional id; generated when omitted. This is the
             revocation handle used by later iterations.
+        delegated_from: optional parent credential_id. When set,
+            delegator_agent_id must also be set, and the credential is a
+            delegation link; verify_chain() (see delegation.py) is the
+            enforcement point for scope/window narrowing. issue_credential
+            itself does NOT check narrowing against the parent — that is
+            delegate_credential()'s job — so a directly issued link with a
+            widened scope is still signed, but verify_chain() rejects it.
+        delegator_agent_id: optional parent agent_id; required exactly
+            when delegated_from is set.
 
     Returns:
         dict with keys "payload", "signature" (base64url), "algorithm".
@@ -168,6 +183,18 @@ def issue_credential(
         raise ValueError("principal must be a non-empty string")
     if not isinstance(issuer, str) or not issuer:
         raise ValueError("issuer must be a non-empty string")
+    if (delegated_from is None) != (delegator_agent_id is None):
+        raise ValueError(
+            "delegated_from and delegator_agent_id must be set together"
+        )
+    if delegated_from is not None and (
+        not isinstance(delegated_from, str) or not delegated_from
+    ):
+        raise ValueError("delegated_from must be a non-empty string")
+    if delegator_agent_id is not None and (
+        not isinstance(delegator_agent_id, str) or not delegator_agent_id
+    ):
+        raise ValueError("delegator_agent_id must be a non-empty string")
     _validate_scope(scope)
     start = _to_utc_iso(not_before)
     end = _to_utc_iso(not_after)
@@ -184,6 +211,9 @@ def issue_credential(
         "not_after": end,
         "issued_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
+    if delegated_from is not None:
+        payload["delegated_from"] = delegated_from
+        payload["delegator_agent_id"] = delegator_agent_id
     signature = private_key.sign(_canonical_bytes(payload))
     return {
         "payload": payload,

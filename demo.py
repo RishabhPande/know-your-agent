@@ -10,7 +10,15 @@ in memory and discarded when the demo exits.
 
 from datetime import datetime, timedelta, timezone
 
-from kya import authorize_purchase, generate_keypair, issue_credential, verify_credential
+from kya import (
+    authorize_purchase,
+    authorize_purchase_chain,
+    delegate_credential,
+    generate_keypair,
+    issue_credential,
+    verify_chain,
+    verify_credential,
+)
 
 
 def verdict(ok, reason):
@@ -55,6 +63,33 @@ def main():
     }
     ok, reason = verify_credential(public_key, tampered)
     print("5. Tampered credential (agent id changed): %s" % verdict(ok, reason))
+
+    # Delegation: the shopper delegates a narrowed scope ($20, same
+    # categories, shorter window) to a sub-agent. The chain verifies, and
+    # purchases are checked against the leaf's scope, not the root's.
+    delegated = delegate_credential(
+        private_key,
+        credential,
+        agent_id="agent-sub-01",
+        scope={"max_amount_usd": 20.0, "categories": ["electronics"]},
+        not_before=now,
+        not_after=now + timedelta(minutes=30),
+    )
+    ok, reason = verify_chain(public_key, [credential, delegated])
+    print("6. Delegated chain (root -> sub-agent, $20): %s" % verdict(ok, reason))
+
+    ok, reason = authorize_purchase_chain(
+        public_key, [credential, delegated], 15.0, "electronics"
+    )
+    print("7. $15 electronics purchase via sub-agent: %s" % verdict(ok, reason))
+
+    ok, reason = authorize_purchase_chain(
+        public_key, [credential, delegated], 30.0, "electronics"
+    )
+    print(
+        "8. $30 electronics purchase via sub-agent (over leaf limit): %s"
+        % verdict(ok, reason)
+    )
 
 
 if __name__ == "__main__":
