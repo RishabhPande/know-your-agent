@@ -183,3 +183,24 @@ def test_authorize_purchase_end_to_end():
     assert authorize_purchase(
         public_key, credential, 30.0, "electronics", revoked_ids=revoked
     ) == (False, "revoked")
+
+
+def test_nan_and_inf_scope_rejected_at_issue():
+    import math
+    sk, _ = generate_keypair()
+    for bad in (float("nan"), float("inf")):
+        try:
+            issue_credential(sk, agent_id="a", principal="u",
+                             scope={"max_amount_usd": bad},
+                             not_before="2026-10-27T00:00:00Z",
+                             not_after="2026-10-27T01:00:00Z")
+        except ValueError:
+            continue
+        raise AssertionError(f"scope {bad} was accepted")
+
+
+def test_nan_amount_is_invalid_not_allowed():
+    from kya.policy import check_purchase
+    payload = {"scope": {"max_amount_usd": 50.0, "categories": ["electronics"]}}
+    assert check_purchase(payload, float("nan"), "electronics") == (False, "invalid_amount")
+    assert check_purchase(payload, float("inf"), "electronics") == (False, "invalid_amount")

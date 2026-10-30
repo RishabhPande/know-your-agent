@@ -53,6 +53,8 @@ fields. A lone credential that *does* carry link fields is ``bad_chain``:
 its parent is missing from the chain.
 """
 
+import math
+
 from .credentials import (
     REASON_BAD_SCOPE,
     REASON_MALFORMED,
@@ -82,6 +84,13 @@ def scope_is_subset(parent_scope, child_scope):
     # max_amount_usd: absent = unbounded.
     parent_max = parent_scope.get("max_amount_usd")
     child_max = child_scope.get("max_amount_usd")
+    for limit in (parent_max, child_max):
+        if limit is not None and (
+            not isinstance(limit, (int, float))
+            or isinstance(limit, bool)
+            or not math.isfinite(limit)
+        ):
+            return False
     if parent_max is not None:
         if child_max is None or child_max > parent_max:
             return False

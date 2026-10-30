@@ -272,3 +272,73 @@ def test_scope_is_subset_semantics():
     assert not scope_is_subset(
         dict(parent, region="us"), dict(parent, region="eu")
     )
+
+
+def test_nan_child_limit_cannot_widen_chain():
+    from datetime import datetime, timezone
+    from kya import (generate_keypair, issue_credential, delegate_credential,
+                     authorize_purchase_chain)
+    sk, pk = generate_keypair()
+    root = issue_credential(sk, agent_id="a", principal="u",
+                            scope={"max_amount_usd": 10.0, "categories": ["e"]},
+                            not_before="2026-10-27T00:00:00Z", not_after="2026-10-27T01:00:00Z")
+    try:
+        child = delegate_credential(sk, root, agent_id="b",
+                                    scope={"max_amount_usd": float("nan"), "categories": ["e"]},
+                                    not_before="2026-10-27T00:00:00Z", not_after="2026-10-27T00:30:00Z")
+    except ValueError:
+        return
+    now = datetime(2026, 10, 27, 0, 10, tzinfo=timezone.utc)
+    ok, _ = authorize_purchase_chain(pk, [root, child], 5000, "e", now=now)
+    assert not ok
+
+
+def _sign_raw(sk, payload):
+    """Sign an arbitrary payload the way issue_credential does, skipping its checks."""
+    import base64
+    from kya.credentials import _canonical_bytes
+    sig = base64.urlsafe_b64encode(sk.sign(_canonical_bytes(payload))).decode()
+    return {"payload": payload, "signature": sig, "algorithm": "Ed25519"}
+
+
+def _raw_payload(cid, scope, **extra):
+    p = {"version": 1, "credential_id": cid, "agent_id": "a-" + cid, "principal": "u",
+         "issuer": "kya", "scope": scope, "not_before": "2026-10-27T00:00:00Z",
+         "not_after": "2026-10-27T01:00:00Z", "issued_at": "2026-10-27T00:00:00Z"}
+    p.update(extra)
+    return p
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_externally_signed_nonfinite_scope_fails_verification(bad):
+    from datetime import datetime, timezone
+    from kya import generate_keypair, verify_credential, authorize_purchase
+    sk, pk = generate_keypair()
+    cred = _sign_raw(sk, _raw_payload("x", {"max_amount_usd": bad, "categories": ["e"]}))
+    now = datetime(2026, 10, 27, 0, 10, tzinfo=timezone.utc)
+    assert verify_credential(pk, cred, now=now) == (False, "bad_scope")
+    assert authorize_purchase(pk, cred, 5000, "e", now=now)[0] is False
+
+
+def test_externally_signed_nan_child_fails_chain():
+    from datetime import datetime, timezone
+    from kya import generate_keypair, verify_chain
+    sk, pk = generate_keypair()
+    root = _sign_raw(sk, _raw_payload("r", {"max_amount_usd": 10.0, "categories": ["e"]}))
+    child = _sign_raw(sk, _raw_payload("c", {"max_amount_usd": float("nan"), "categories": ["e"]},
+                                       delegated_from="r", delegator_agent_id="a-r"))
+    now = datetime(2026, 10, 27, 0, 10, tzinfo=timezone.utc)
+    ok, _ = verify_chain(pk, [root, child], now=now)
+    assert not ok
+
+
+@pytest.mark.parametrize("parent,child", [
+    ({"max_amount_usd": float("nan")}, {"max_amount_usd": 5.0}),
+    ({"max_amount_usd": 10.0}, {"max_amount_usd": float("nan")}),
+    ({"max_amount_usd": float("inf")}, {"max_amount_usd": 5.0}),
+    ({"max_amount_usd": 10.0}, {"max_amount_usd": float("inf")}),
+    ({}, {"max_amount_usd": float("nan")}),
+])
+def test_scope_is_subset_rejects_nonfinite_limits(parent, child):
+    from kya.delegation import scope_is_subset
+    assert scope_is_subset(parent, child) is False
