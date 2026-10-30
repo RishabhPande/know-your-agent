@@ -15,13 +15,16 @@ identity: scoped, session-limited, and revocable.
    scope, and signature checks. Verification fails closed on any tampering or expiry.
 3. Delegation chains: an agent may delegate a subset of its scope to a sub-agent.
    Verification walks the chain and enforces that scope only narrows, never widens.
-4. Revocation: a revocation list with `revoke()` and verification-time lookup.
-   A revoked credential fails verification even inside its session window.
-5. Audit trail: every issuance, verification, and revocation appends a signed,
-   append-only log entry, so a disputed transaction can be reconstructed.
-6. Demo: a runnable end-to-end script. A shopping agent gets a credential, makes a
+4. Demo: a runnable end-to-end script. A shopping agent gets a credential, makes a
    purchase within scope (accepted), tries one outside scope (rejected), then gets
    revoked and retries (rejected). No servers, no accounts, runs in minutes.
+
+## Planned next (not yet shipped)
+- Revocation management: a maintained revocation list with a revoke API
+  and verification-time lookup, so a revoked credential fails verification
+  even inside its session window.
+- Audit trail: every issuance, verification, and revocation appends a signed,
+  append-only log entry, so a disputed transaction can be reconstructed.
 
 ## Design rules
 - No real money, no real credentials, no vendor lock-in. Pure Python, minimal deps
