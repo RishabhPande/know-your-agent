@@ -5,6 +5,8 @@ already passed signature and session checks, is this specific purchase inside
 its scope? It does not issue or verify credentials itself; see credentials.py.
 """
 
+import math
+
 from .credentials import verify_credential
 
 REASON_ALLOWED = "allowed"
@@ -27,7 +29,7 @@ def check_purchase(payload, amount_usd, category):
     """
     if not isinstance(amount_usd, (int, float)) or isinstance(amount_usd, bool):
         return False, REASON_INVALID_AMOUNT
-    if amount_usd <= 0:
+    if not math.isfinite(amount_usd) or amount_usd <= 0:
         return False, REASON_INVALID_AMOUNT
     if not isinstance(category, str) or not category:
         return False, REASON_CATEGORY_NOT_ALLOWED
