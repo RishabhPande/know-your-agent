@@ -151,10 +151,14 @@ ok, reason = authorize_purchase_chain(
 ```
 
 ```mermaid
-flowchart LR
-    R["Root credential<br/>agent-shopper-01<br/>up to $50, electronics<br/>1 hour"] -->|"delegate_credential()<br/>narrower scope, shorter window"| L["Sub-agent credential<br/>agent-sub-01<br/>up to $20, electronics<br/>30 minutes"]
-    L --> A["$15 electronics<br/>ACCEPTED"]
-    L --> B["$30 electronics<br/>REJECTED: amount_exceeds_scope"]
+flowchart TB
+    R["Root credential<br/>agent-shopper-01<br/>up to $50, electronics, 1 hour"]
+    L["Sub-agent credential<br/>agent-sub-01<br/>up to $20, electronics, 30 minutes"]
+    A["$15 electronics purchase<br/>ACCEPTED"]
+    B["$30 electronics purchase<br/>REJECTED (amount_exceeds_scope)"]
+    R -->|"delegate_credential(): narrower scope, shorter window"| L
+    L --> A
+    L --> B
 ```
 
 *The chain from `demo.py` (steps 6 to 8). The $30 purchase fits the root's $50 limit but not the leaf's $20 limit, so the chain rejects it.*
