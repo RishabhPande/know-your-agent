@@ -28,6 +28,7 @@ for the revocation list.
 import base64
 import binascii
 import json
+import math
 import uuid
 from datetime import datetime, timezone
 
@@ -129,6 +130,8 @@ def _validate_scope(scope):
         amount = scope["max_amount_usd"]
         if not isinstance(amount, (int, float)) or isinstance(amount, bool):
             raise ValueError("scope max_amount_usd must be a number")
+        if not math.isfinite(amount):
+            raise ValueError("scope max_amount_usd must be finite")
         if amount <= 0:
             raise ValueError("scope max_amount_usd must be positive")
     if "categories" in scope:
@@ -288,5 +291,11 @@ def verify_credential(public_key, credential, *, now=None, revoked_ids=None):
     if check_time < start:
         return False, REASON_NOT_YET_VALID
     if not isinstance(payload.get("scope"), dict):
+        return False, REASON_BAD_SCOPE
+    # Credentials signed elsewhere never went through issue_credential, so
+    # re-check the scope shape (finite, positive limit) at verification time.
+    try:
+        _validate_scope(payload["scope"])
+    except ValueError:
         return False, REASON_BAD_SCOPE
     return True, REASON_OK
