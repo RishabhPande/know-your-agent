@@ -191,7 +191,8 @@ def verify_chain(public_key, chain, *, now=None, revoked_ids=None):
         public_key: Ed25519 public key of the issuer.
         chain: ordered list [root, ..., leaf] of credential dicts.
         now, revoked_ids: passed through to verify_credential for
-            every link.
+            every link, so a RevocationList (or a plain set of ids)
+            revokes any link in the chain, root or leaf.
 
     Returns (True, "ok") or (False, reason). Individual-link failures
     (bad_signature, revoked, expired, ...) are reported first, in chain

@@ -11,6 +11,7 @@ in memory and discarded when the demo exits.
 from datetime import datetime, timedelta, timezone
 
 from kya import (
+    RevocationList,
     authorize_purchase,
     authorize_purchase_chain,
     delegate_credential,
@@ -50,9 +51,10 @@ def main():
     ok, reason = authorize_purchase(public_key, credential, 30.0, "groceries")
     print("3. $30 groceries purchase: %s" % verdict(ok, reason))
 
-    revoked = {credential["payload"]["credential_id"]}
+    revocations = RevocationList()
+    revocations.revoke_credential(credential, reason="reported stolen")
     ok, reason = authorize_purchase(
-        public_key, credential, 30.0, "electronics", revoked_ids=revoked
+        public_key, credential, 30.0, "electronics", revoked_ids=revocations
     )
     print("4. $30 electronics purchase after revocation: %s" % verdict(ok, reason))
 

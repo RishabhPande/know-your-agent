@@ -18,11 +18,13 @@ identity: scoped, session-limited, and revocable.
 4. Demo: a runnable end-to-end script. A shopping agent gets a credential, makes a
    purchase within scope (accepted), tries one outside scope (rejected), then gets
    revoked and retries (rejected). No servers, no accounts, runs in minutes.
+5. Revocation management: a RevocationList owns the revoked ids, with a
+   revoke API, verification-time lookup, and JSON persistence. Revocation is
+   permanent: a revoked credential fails verification even inside its
+   session window, and revoking any link in a delegation chain fails the
+   whole chain.
 
 ## Planned next (not yet shipped)
-- Revocation management: a maintained revocation list with a revoke API
-  and verification-time lookup, so a revoked credential fails verification
-  even inside its session window.
 - Audit trail: every issuance, verification, and revocation appends a signed,
   append-only log entry, so a disputed transaction can be reconstructed.
 
@@ -38,10 +40,13 @@ identity: scoped, session-limited, and revocable.
 2. Delegation chains (DONE 2026-10-28: kya/delegation.py — delegate_credential,
    verify_chain, authorize_purchase_chain; scope only narrows, window only
    shrinks, principal fixed; 16 new tests, 29 total green).
-3. Revocation management: a maintained revocation list with a revoke API
-   and verification-time lookup (NEXT).
+3. Revocation management (DONE 2026-10-30: kya/revocation.py — RevocationList
+   with revoke/revoke_credential, permanent entries, JSON round-trip, and
+   verification-time lookup in verify_credential, verify_chain, and the
+   purchase authorizers; revoking a chain link fails the whole chain;
+   14 new tests, 43 total green).
 4. Audit trail: a signed, append-only log of issuance, verification, and
-   revocation, so a disputed transaction can be reconstructed.
+   revocation, so a disputed transaction can be reconstructed (NEXT).
 5. FastAPI demo service: verify endpoint + a tiny merchant checkout example.
 6. Benchmark hook: score a fraud model on agent traffic using KYA verdicts as labels,
    linking back to the AgentRisk work.

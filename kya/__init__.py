@@ -1,4 +1,4 @@
-"""Know Your Agent: the public API surface (v0.1 + delegation chains)."""
+"""Know Your Agent: the public API surface (v0.1 + delegation + revocation)."""
 
 from .credentials import (
     ALGORITHM,
@@ -38,6 +38,7 @@ from .policy import (
     authorize_purchase,
     check_purchase,
 )
+from .revocation import REVOCATION_LIST_VERSION, RevocationList
 
 __all__ = [
     "ALGORITHM",
@@ -58,6 +59,8 @@ __all__ = [
     "REASON_SCOPE_WIDENED",
     "REASON_UNSUPPORTED_ALGORITHM",
     "REASON_WINDOW_WIDENED",
+    "REVOCATION_LIST_VERSION",
+    "RevocationList",
     "authorize_purchase",
     "authorize_purchase_chain",
     "check_purchase",

@@ -74,7 +74,7 @@ algorithm name.
 Field notes:
 
 - `credential_id` is unique per credential and serves as the revocation
-  handle for later iterations.
+  handle for `RevocationList`.
 - `scope` describes what the agent may do. v0.1 supports purchase scope
   (`max_amount_usd`, `categories`); the shape is extensible.
 - Times are UTC ISO 8601 strings. The session window is enforced at
@@ -106,10 +106,11 @@ ok, reason = authorize_purchase(public_key, credential, 30.0, "electronics")
 
 `verify_credential` returns `(True, "ok")` or `(False, reason)`, checked in
 this order: `malformed`, `unsupported_algorithm`, `bad_signature`,
-`revoked`, `expired` / `not_yet_valid`, `bad_scope`. It also accepts an
-optional `revoked_ids` set; a credential whose id is in that set is
-rejected as `revoked`. In v0.1 the caller manages that set; full
-revocation management arrives in a later iteration (see below).
+`revoked`, `expired` / `not_yet_valid`, `bad_scope`. It accepts an
+optional `revoked_ids` argument: either a plain set of ids or a
+`RevocationList` (see below). A credential whose id is revoked is
+rejected as `revoked`, even inside its session window, and revocation
+beats expiry in the check order.
 
 `authorize_purchase` combines verification with a scope check and returns
 `(True, "allowed")` only when both pass, otherwise the verification reason
@@ -149,6 +150,34 @@ ok, reason = authorize_purchase_chain(
 )
 ```
 
+## Revocation management
+
+`RevocationList` owns the revoked ids, so no caller has to maintain a set
+by hand. Revoke by id or straight from a credential, pass the list itself
+to any verify or authorize call, and save it to disk as JSON when it
+needs to survive a restart. Revocation is permanent: there is no unrevoke,
+so a mistaken revocation is fixed by issuing a fresh credential, not by
+resurrecting the old one. Revoking any link in a delegation chain fails
+the whole chain, root or leaf.
+
+```python
+from kya import RevocationList, verify_credential
+
+revocations = RevocationList()
+revocations.revoke_credential(credential, reason="reported stolen")
+ok, reason = verify_credential(public_key, credential, revoked_ids=revocations)
+# (False, "revoked")
+
+saved = revocations.to_json()
+restored = RevocationList.from_json(saved)
+assert restored.is_revoked(credential["payload"]["credential_id"])
+```
+
+Re-revoking an id is a harmless no-op that returns `False` and keeps the
+original entry, so repeated calls never rewrite history. Loading
+validates strictly and raises `ValueError` on a bad version, a duplicate
+id, or a malformed entry, instead of silently dropping entries.
+
 ## Security notes
 
 - Fail closed, everywhere: unverifiable input is rejected, never accepted
@@ -162,16 +191,14 @@ ok, reason = authorize_purchase_chain(
 ## What comes next
 
 v0.1 is the core: credential model, issue and verify, purchase policy, demo,
-and tests. Delegation chains shipped next (see above). The remaining
-iterations, in order:
+and tests. Delegation chains and revocation management shipped next (see
+above). The remaining iterations, in order:
 
-1. Revocation management: a maintained revocation list with a revoke API
-   and verification-time lookup.
-2. Audit trail: a signed, append-only log of issuance, verification, and
+1. Audit trail: a signed, append-only log of issuance, verification, and
    revocation, so a disputed transaction can be reconstructed.
-3. FastAPI demo service: a verify endpoint plus a tiny merchant checkout
+2. FastAPI demo service: a verify endpoint plus a tiny merchant checkout
    example.
-4. Benchmark hook: score a fraud model on agent traffic using KYA verdicts
+3. Benchmark hook: score a fraud model on agent traffic using KYA verdicts
    as labels.
 
 ## License

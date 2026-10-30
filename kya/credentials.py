@@ -13,14 +13,16 @@ Delegation chains live in delegation.py: a delegated credential carries
 (the parent agent_id), and verify_chain() walks the chain enforcing that
 scope only narrows and the session window only shrinks.
 
+Revocation management lives in revocation.py: a RevocationList owns the
+revoked ids, with a revoke API and JSON persistence. verify_credential
+accepts either a plain set of revoked ids or a RevocationList, so a
+revoked credential is rejected when the caller supplies either one.
+
 What later iterations still do NOT include:
-- revocation management (a maintained revocation list with a revoke API)
 - an audit trail (a signed append-only log of issuance and verification)
 
 The credential carries a credential_id that serves as the revocation handle
-for those later iterations. verify_credential already accepts a caller
-provided set of revoked ids, so a revoked credential is rejected today when
-the caller supplies that set; the list itself is managed by the caller for now.
+for the revocation list.
 """
 
 import base64
@@ -161,7 +163,7 @@ def issue_credential(
         not_before / not_after: session window, as datetimes or ISO strings.
         issuer: identifier of the issuer (default "kya").
         credential_id: optional id; generated when omitted. This is the
-            revocation handle used by later iterations.
+            revocation handle used by RevocationList (see revocation.py).
         delegated_from: optional parent credential_id. When set,
             delegator_agent_id must also be set, and the credential is a
             delegation link; verify_chain() (see delegation.py) is the
@@ -229,9 +231,10 @@ def verify_credential(public_key, credential, *, now=None, revoked_ids=None):
         public_key: Ed25519 public key of the expected issuer.
         credential: dict produced by issue_credential (or its JSON round-trip).
         now: datetime for the session-window check (defaults to current UTC).
-        revoked_ids: optional set of credential_ids treated as revoked. The
-            caller manages this set in v0.1; full revocation management
-            arrives in a later iteration.
+        revoked_ids: optional set of credential_ids treated as revoked,
+            or a RevocationList (see revocation.py), which is looked up
+            at verification time. A plain set still works exactly as
+            before, so existing callers need no changes.
 
     Returns:
         (True, "ok") or (False, reason) where reason is one of the
@@ -261,8 +264,16 @@ def verify_credential(public_key, credential, *, now=None, revoked_ids=None):
         return False, REASON_BAD_SIGNATURE
     except Exception:
         return False, REASON_MALFORMED
-    if revoked_ids is not None and payload.get("credential_id") in revoked_ids:
-        return False, REASON_REVOKED
+    if revoked_ids is not None:
+        # A RevocationList is accepted directly (duck-typed, to avoid a
+        # circular import with revocation.py); anything else is treated
+        # as a plain container of ids, as before.
+        if callable(getattr(revoked_ids, "revoked_ids", None)):
+            revoked_lookup = revoked_ids.revoked_ids()
+        else:
+            revoked_lookup = revoked_ids
+        if payload.get("credential_id") in revoked_lookup:
+            return False, REASON_REVOKED
     try:
         start = _parse_iso(payload["not_before"])
         end = _parse_iso(payload["not_after"])
