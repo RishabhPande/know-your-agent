@@ -23,10 +23,15 @@ identity: scoped, session-limited, and revocable.
    permanent: a revoked credential fails verification even inside its
    session window, and revoking any link in a delegation chain fails the
    whole chain.
+6. Audit trail: an AuditLog records issuance, verification, and revocation
+   as signed, hash-chained entries, with JSON persistence and fail-closed
+   verification (malformed, bad_index, bad_hash_chain, bad_signature).
+   Tampering with a middle entry breaks the chain; tail truncation is
+   caught only by an external anchor passed as expected_last_hash.
 
 ## Planned next (not yet shipped)
-- Audit trail: every issuance, verification, and revocation appends a signed,
-  append-only log entry, so a disputed transaction can be reconstructed.
+- FastAPI demo service: a verify endpoint plus a tiny merchant checkout
+  example.
 
 ## Design rules
 - No real money, no real credentials, no vendor lock-in. Pure Python, minimal deps
@@ -45,9 +50,12 @@ identity: scoped, session-limited, and revocable.
    verification-time lookup in verify_credential, verify_chain, and the
    purchase authorizers; revoking a chain link fails the whole chain;
    14 new tests, 43 total green).
-4. Audit trail: a signed, append-only log of issuance, verification, and
-   revocation, so a disputed transaction can be reconstructed (NEXT).
-5. FastAPI demo service: verify endpoint + a tiny merchant checkout example.
+4. Audit trail (DONE 2026-11-01: kya/audit.py, AuditLog with
+   record_issued / record_verified / record_revoked, hash-chained
+   entries, Ed25519 signatures, JSON round-trip, and fail-closed
+   verification with an external-anchor check for tail truncation;
+   15 new tests, 70 total green).
+5. FastAPI demo service: verify endpoint + a tiny merchant checkout example (NEXT).
 6. Benchmark hook: score a fraud model on agent traffic using KYA verdicts as labels,
    linking back to the AgentRisk work.
 

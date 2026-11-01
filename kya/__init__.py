@@ -1,5 +1,10 @@
-"""Know Your Agent: the public API surface (v0.1 + delegation + revocation)."""
+"""Know Your Agent: the public API surface (v0.1 + delegation + revocation + audit)."""
 
+from .audit import (
+    AUDIT_LOG_VERSION,
+    AuditLog,
+    verify_audit_entries,
+)
 from .credentials import (
     ALGORITHM,
     REASON_BAD_SCOPE,
@@ -42,6 +47,8 @@ from .revocation import REVOCATION_LIST_VERSION, RevocationList
 
 __all__ = [
     "ALGORITHM",
+    "AUDIT_LOG_VERSION",
+    "AuditLog",
     "REASON_ALLOWED",
     "REASON_AMOUNT_EXCEEDS_SCOPE",
     "REASON_BAD_CHAIN",
@@ -72,6 +79,7 @@ __all__ = [
     "private_key_to_pem",
     "public_key_to_pem",
     "scope_is_subset",
+    "verify_audit_entries",
     "verify_chain",
     "verify_credential",
     "window_is_subset",

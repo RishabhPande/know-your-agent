@@ -11,12 +11,14 @@ in memory and discarded when the demo exits.
 from datetime import datetime, timedelta, timezone
 
 from kya import (
+    AuditLog,
     RevocationList,
     authorize_purchase,
     authorize_purchase_chain,
     delegate_credential,
     generate_keypair,
     issue_credential,
+    verify_audit_entries,
     verify_chain,
     verify_credential,
 )
@@ -92,6 +94,23 @@ def main():
         "8. $30 electronics purchase via sub-agent (over leaf limit): %s"
         % verdict(ok, reason)
     )
+
+    # Audit trail: the issuance, one verification, and the revocation go
+    # into a signed, hash-chained log. The demo signs the log with the
+    # issuer key for simplicity; a real deployment would use a separate
+    # audit key. Tampering with any recorded entry breaks the chain.
+    audit = AuditLog(private_key)
+    audit.record_issued(credential)
+    ok, reason = verify_credential(public_key, credential)
+    audit.record_verified(credential, ok, reason)
+    audit.record_revoked(credential, reason="reported stolen")
+    ok, reason = audit.verify(public_key)
+    print("9. Audit log (%d entries) verifies: %s" % (len(audit), verdict(ok, reason)))
+
+    tampered_log = audit.entries()
+    tampered_log[0]["outcome"] = "revoked"
+    ok, reason = verify_audit_entries(public_key, tampered_log)
+    print("10. Tampered audit entry (outcome rewritten): %s" % verdict(ok, reason))
 
 
 if __name__ == "__main__":

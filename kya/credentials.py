@@ -18,8 +18,9 @@ revoked ids, with a revoke API and JSON persistence. verify_credential
 accepts either a plain set of revoked ids or a RevocationList, so a
 revoked credential is rejected when the caller supplies either one.
 
-What later iterations still do NOT include:
-- an audit trail (a signed append-only log of issuance and verification)
+The audit trail lives in audit.py: an AuditLog records issuance,
+verification, and revocation as signed, hash-chained entries, so a
+disputed transaction can be reconstructed from the log.
 
 The credential carries a credential_id that serves as the revocation handle
 for the revocation list.

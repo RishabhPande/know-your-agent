@@ -39,6 +39,8 @@ Scope: up to $50 in electronics. Session: 1 hour.
 6. Delegated chain (root -> sub-agent, $20): ACCEPTED (ok)
 7. $15 electronics purchase via sub-agent: ACCEPTED (allowed)
 8. $30 electronics purchase via sub-agent (over leaf limit): REJECTED (amount_exceeds_scope)
+9. Audit log (3 entries) verifies: ACCEPTED (ok)
+10. Tampered audit entry (outcome rewritten): REJECTED (bad_hash_chain)
 ```
 
 Run the tests with:
@@ -191,6 +193,45 @@ original entry, so repeated calls never rewrite history. Loading
 validates strictly and raises `ValueError` on a bad version, a duplicate
 id, or a malformed entry, instead of silently dropping entries.
 
+## Audit trail
+
+`AuditLog` records issuance, verification, and revocation as a signed,
+hash-chained log, so a disputed transaction can be reconstructed from
+the record instead of argued about. Each entry links to the previous
+entry's hash and carries its own hash plus an Ed25519 signature, so
+inserting, deleting, reordering, or editing a middle entry breaks the
+chain, and a forged signature fails verification outright. `verify`
+returns `(True, "ok")` or `(False, reason)` with reasons `malformed`,
+`bad_index`, `bad_hash_chain`, and `bad_signature`, in that order.
+
+```python
+from kya import AuditLog
+
+audit = AuditLog(private_key)
+audit.record_issued(credential)
+ok, reason = verify_credential(public_key, credential)
+audit.record_verified(credential, ok, reason)
+audit.record_revoked(credential, reason="reported stolen")
+ok, reason = audit.verify(public_key)
+# (True, "ok")
+
+saved = audit.to_json()
+restored = AuditLog.from_json(saved)
+assert restored.verify(public_key) == (True, "ok")
+```
+
+Two honest limits. First, dropping entries from the tail still
+verifies, because a shorter chain is still a valid chain, so anchor the
+latest hash somewhere the auditor cannot rewrite (a timestamped post, a
+second store, a periodic commit) and pass it as
+`expected_last_hash` to `verify`: a truncated log then fails. Second,
+the log proves the recorded history was not altered, not that the
+history is complete: an event nobody recorded leaves no trace. The log
+is append-only by construction, with no delete, truncate, or edit
+method, and loading checks shape only, so always call `verify` before
+trusting a loaded log. In the demo the issuer key signs the log for
+simplicity; a real deployment should use a separate audit key.
+
 ## Security notes
 
 - Fail closed, everywhere: unverifiable input is rejected, never accepted
@@ -204,14 +245,12 @@ id, or a malformed entry, instead of silently dropping entries.
 ## What comes next
 
 v0.1 is the core: credential model, issue and verify, purchase policy, demo,
-and tests. Delegation chains and revocation management shipped next (see
-above). The remaining iterations, in order:
+and tests. Delegation chains, revocation management, and the audit trail
+shipped next (see above). The remaining iterations, in order:
 
-1. Audit trail: a signed, append-only log of issuance, verification, and
-   revocation, so a disputed transaction can be reconstructed.
-2. FastAPI demo service: a verify endpoint plus a tiny merchant checkout
+1. FastAPI demo service: a verify endpoint plus a tiny merchant checkout
    example.
-3. Benchmark hook: score a fraud model on agent traffic using KYA verdicts
+2. Benchmark hook: score a fraud model on agent traffic using KYA verdicts
    as labels.
 
 ## License
