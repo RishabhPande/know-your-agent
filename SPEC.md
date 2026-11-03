@@ -30,8 +30,15 @@ identity: scoped, session-limited, and revocable.
    caught only by an external anchor passed as expected_last_hash.
 
 ## Planned next (not yet shipped)
-- FastAPI demo service: a verify endpoint plus a tiny merchant checkout
-  example.
+- Benchmark hook: score a fraud model on agent traffic using KYA verdicts
+  as labels, linking back to the AgentRisk work.
+
+## Shipped since v0.1
+- FastAPI demo service (DONE 2026-11-03: service/app.py, create_app
+  with /health, /verify, /verify-chain, /checkout, /revoke, /audit;
+  fail-closed HTTP answers matching the library reasons; revocation
+  and audit wired in; service/demo.py runnable demo printing a sample
+  credential; 18 new tests, 88 total green).
 
 ## Design rules
 - No real money, no real credentials, no vendor lock-in. Pure Python, minimal deps
@@ -42,10 +49,10 @@ identity: scoped, session-limited, and revocable.
 
 ## 48-hour improvement backlog (in order)
 1. v0.1 core: credential model + issue/verify + demo + README (this spec).
-2. Delegation chains (DONE 2026-10-28: kya/delegation.py — delegate_credential,
+2. Delegation chains (DONE 2026-10-28: kya/delegation.py, delegate_credential,
    verify_chain, authorize_purchase_chain; scope only narrows, window only
    shrinks, principal fixed; 16 new tests, 29 total green).
-3. Revocation management (DONE 2026-10-30: kya/revocation.py — RevocationList
+3. Revocation management (DONE 2026-10-30: kya/revocation.py, RevocationList
    with revoke/revoke_credential, permanent entries, JSON round-trip, and
    verification-time lookup in verify_credential, verify_chain, and the
    purchase authorizers; revoking a chain link fails the whole chain;
@@ -55,9 +62,13 @@ identity: scoped, session-limited, and revocable.
    entries, Ed25519 signatures, JSON round-trip, and fail-closed
    verification with an external-anchor check for tail truncation;
    15 new tests, 70 total green).
-5. FastAPI demo service: verify endpoint + a tiny merchant checkout example (NEXT).
+5. FastAPI demo service (DONE 2026-11-03: service/app.py, create_app
+   with /health, /verify, /verify-chain, /checkout, /revoke, /audit;
+   fail-closed HTTP answers matching the library reasons; revocation
+   and audit wired in; service/demo.py runnable demo; 18 new tests,
+   88 total green).
 6. Benchmark hook: score a fraud model on agent traffic using KYA verdicts as labels,
-   linking back to the AgentRisk work.
+   linking back to the AgentRisk work (NEXT).
 
 ## Naming and license (suggested)
 - Repo: `know-your-agent` (public)

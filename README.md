@@ -232,6 +232,47 @@ method, and loading checks shape only, so always call `verify` before
 trusting a loaded log. In the demo the issuer key signs the log for
 simplicity; a real deployment should use a separate audit key.
 
+## FastAPI demo service
+
+`service/app.py` puts the same checks behind HTTP, so a merchant can
+try the flow without writing Python. The service holds no private key
+and issues nothing: it trusts one issuer public key given at startup,
+checks a `RevocationList`, and records verifications in an `AuditLog`
+when one is configured.
+
+```bash
+pip install -r requirements.txt
+python -m service.demo
+```
+
+That prints a sample credential (valid about an hour, only against
+that running demo) and serves on http://127.0.0.1:8000. Then:
+
+```bash
+curl -X POST http://127.0.0.1:8000/verify \
+  -H 'Content-Type: application/json' \
+  -d '{"credential": CREDENTIAL_JSON}'
+
+curl -X POST http://127.0.0.1:8000/checkout \
+  -H 'Content-Type: application/json' \
+  -d '{"credential": CREDENTIAL_JSON, "amount_usd": 30.0, "category": "electronics"}'
+```
+
+Endpoints: `GET /health`, `POST /verify`, `POST /verify-chain`,
+`POST /checkout`, `POST /revoke` (by credential id, or by full
+credential, which also lands in the audit log), and `GET /audit`
+(entries plus their verification result, when a log is configured).
+A verify or checkout answer is `{"ok": true, "reason": "ok"}` or
+`{"accepted": true, "reason": "allowed"}` on success, and the
+fail-closed reason otherwise: `malformed`, `bad_signature`, `revoked`,
+`expired`, `amount_exceeds_scope`, `category_not_allowed`, and so on.
+A malformed credential is a rejection with a reason, never a 500, and
+never an acceptance. To embed the service in your own app instead of
+the demo, call `create_app(public_key, revocations=..., audit=...)`
+from `service.app` and serve the result with uvicorn. Revocation state
+belongs to each app instance: two apps built without a shared list do
+not share revocations, which the tests pin down.
+
 ## Security notes
 
 - Fail closed, everywhere: unverifiable input is rejected, never accepted
@@ -245,12 +286,11 @@ simplicity; a real deployment should use a separate audit key.
 ## What comes next
 
 v0.1 is the core: credential model, issue and verify, purchase policy, demo,
-and tests. Delegation chains, revocation management, and the audit trail
-shipped next (see above). The remaining iterations, in order:
+and tests. Delegation chains, revocation management, the audit trail, and
+the FastAPI demo service shipped next (see above). The remaining
+iteration, in order:
 
-1. FastAPI demo service: a verify endpoint plus a tiny merchant checkout
-   example.
-2. Benchmark hook: score a fraud model on agent traffic using KYA verdicts
+1. Benchmark hook: score a fraud model on agent traffic using KYA verdicts
    as labels.
 
 ## License
