@@ -18,6 +18,8 @@ from kya import (
     delegate_credential,
     generate_keypair,
     issue_credential,
+    records_from_audit,
+    score_model,
     verify_audit_entries,
     verify_chain,
     verify_credential,
@@ -111,6 +113,70 @@ def main():
     tampered_log[0]["outcome"] = "revoked"
     ok, reason = verify_audit_entries(public_key, tampered_log)
     print("10. Tampered audit entry (outcome rewritten): %s" % verdict(ok, reason))
+
+    # Benchmark hook: KYA verdicts are labels for a fraud model. Four
+    # fresh credentials stand in for four transactions, and the toy
+    # model scores each one from its credential alone (0.1 when the
+    # credential verified, 0.9 when it did not). A real model would
+    # score from transaction features instead; the point here is the
+    # plumbing: verdicts in, precision/recall/AUC out. The over-limit
+    # purchase is a policy rejection, not fraud, so it is excluded
+    # from the metrics and counted separately.
+    bench_audit = AuditLog(private_key)
+
+    def bench_credential(agent_id):
+        return issue_credential(
+            private_key,
+            agent_id=agent_id,
+            principal="user-123",
+            scope={"max_amount_usd": 50.0, "categories": ["electronics"]},
+            not_before=now - timedelta(minutes=5),
+            not_after=now + timedelta(hours=1),
+        )
+
+    legit = bench_credential("agent-bench-legit")
+    ok, reason = verify_credential(public_key, legit)
+    bench_audit.record_verified(legit, ok, reason)
+    forged = bench_credential("agent-bench-forged")
+    forged = {
+        "payload": dict(forged["payload"], agent_id="agent-impostor-99"),
+        "signature": forged["signature"],
+        "algorithm": forged["algorithm"],
+    }
+    ok, reason = verify_credential(public_key, forged)
+    bench_audit.record_verified(forged, ok, reason)
+    stolen = bench_credential("agent-bench-stolen")
+    revocations.revoke_credential(stolen, reason="reported stolen")
+    ok, reason = verify_credential(
+        public_key, stolen, revoked_ids=revocations
+    )
+    bench_audit.record_verified(stolen, ok, reason)
+    over_limit = bench_credential("agent-bench-over-limit")
+    ok, reason = authorize_purchase(
+        public_key, over_limit, 500.0, "electronics"
+    )
+    bench_audit.record_verified(over_limit, ok, reason)
+
+    model_scores = {}
+    for entry in bench_audit.entries():
+        if entry["kind"] != "verified":
+            continue
+        model_scores[entry["credential_id"]] = (
+            0.1 if entry["outcome"] == "ok" else 0.9
+        )
+    records, counts = records_from_audit(bench_audit.entries(), model_scores)
+    result = score_model(records)
+    print(
+        "11. Benchmark (toy model, %d scored, %d ambiguous excluded): "
+        "precision %.2f, recall %.2f, AUC %.2f"
+        % (
+            result["n_scored"],
+            result["n_excluded_ambiguous"],
+            result["precision"],
+            result["recall"],
+            result["auc"],
+        )
+    )
 
 
 if __name__ == "__main__":

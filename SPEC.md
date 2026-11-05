@@ -30,8 +30,9 @@ identity: scoped, session-limited, and revocable.
    caught only by an external anchor passed as expected_last_hash.
 
 ## Planned next (not yet shipped)
-- Benchmark hook: score a fraud model on agent traffic using KYA verdicts
-  as labels, linking back to the AgentRisk work.
+- AgentRisk link-up: convert AgentRisk case JSON
+  (RishabhPande/agentrisk) to benchmark records, so the hook scores
+  real agent traffic instead of demo traffic.
 
 ## Shipped since v0.1
 - FastAPI demo service (DONE 2026-11-03: service/app.py, create_app
@@ -39,6 +40,12 @@ identity: scoped, session-limited, and revocable.
   fail-closed HTTP answers matching the library reasons; revocation
   and audit wired in; service/demo.py runnable demo printing a sample
   credential; 18 new tests, 88 total green).
+- Benchmark hook (DONE 2026-11-05: kya/benchmark.py, score_model with
+  confusion matrix, precision, recall, F1, accuracy, and rank-based
+  AUC; KYA verdicts as labels, purchase-policy rejections excluded as
+  ambiguous and counted; records_from_audit pairs audit log entries
+  with model scores by credential id; POST /benchmark endpoint;
+  demo.py step 11; 23 new tests, 111 total green).
 
 ## Design rules
 - No real money, no real credentials, no vendor lock-in. Pure Python, minimal deps
@@ -68,7 +75,9 @@ identity: scoped, session-limited, and revocable.
    and audit wired in; service/demo.py runnable demo; 18 new tests,
    88 total green).
 6. Benchmark hook: score a fraud model on agent traffic using KYA verdicts as labels,
-   linking back to the AgentRisk work (NEXT).
+   linking back to the AgentRisk work (DONE 2026-11-05: kya/benchmark.py,
+   score_model, records_from_audit, POST /benchmark, demo step 11;
+   23 new tests, 111 total green).
 
 ## Naming and license (suggested)
 - Repo: `know-your-agent` (public)

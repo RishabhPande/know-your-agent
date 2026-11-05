@@ -41,6 +41,7 @@ Scope: up to $50 in electronics. Session: 1 hour.
 8. $30 electronics purchase via sub-agent (over leaf limit): REJECTED (amount_exceeds_scope)
 9. Audit log (3 entries) verifies: ACCEPTED (ok)
 10. Tampered audit entry (outcome rewritten): REJECTED (bad_hash_chain)
+11. Benchmark (toy model, 3 scored, 1 ambiguous excluded): precision 1.00, recall 1.00, AUC 1.00
 ```
 
 Run the tests with:
@@ -232,6 +233,41 @@ method, and loading checks shape only, so always call `verify` before
 trusting a loaded log. In the demo the issuer key signs the log for
 simplicity; a real deployment should use a separate audit key.
 
+## Benchmark hook
+
+Every verification ends in a verdict, and that verdict is a ground-truth
+label for the transaction it judged. `kya/benchmark.py` turns those
+labels into a fraud-model scorecard: a credential that verifies (or a
+purchase inside its scope) is legitimate, a credential rejected for a
+credential reason (revoked, bad signature, expired, and so on) is a
+fraud attempt, and a purchase-policy rejection (over the scope limit, a
+category outside the scope) is ambiguous and excluded from the metrics,
+counted separately.
+
+```python
+from kya import make_record, records_from_audit, score_model
+
+records = [
+    make_record(0.95, "revoked"),
+    make_record(0.10, "ok"),
+]
+result = score_model(records)
+# {"precision": 1.0, "recall": 1.0, "f1": 1.0, "accuracy": 1.0,
+#  "auc": 1.0, "tp": 1, "tn": 1, "fp": 0, "fn": 0, ...}
+```
+
+`records_from_audit` builds records straight from an `AuditLog`:
+hand it the log entries and a dict mapping credential id to the model's
+score for that transaction, and it pairs them up, counting entries with
+no score instead of guessing one. AUC is computed by the rank method in
+pure Python, with ties as half wins, and comes back as `None` when the
+records hold only one class, rather than a made-up number. The service
+exposes the same scoring at `POST /benchmark`. The record format is
+documented in `kya/benchmark.py` so other traffic sources can convert
+to it; the AgentRisk cases (RishabhPande/agentrisk on Hugging Face) are
+the natural next source, since each case already carries an agent
+transaction and an expected verdict.
+
 ## FastAPI demo service
 
 `service/app.py` puts the same checks behind HTTP, so a merchant can
@@ -260,8 +296,10 @@ curl -X POST http://127.0.0.1:8000/checkout \
 
 Endpoints: `GET /health`, `POST /verify`, `POST /verify-chain`,
 `POST /checkout`, `POST /revoke` (by credential id, or by full
-credential, which also lands in the audit log), and `GET /audit`
-(entries plus their verification result, when a log is configured).
+credential, which also lands in the audit log), `GET /audit`
+(entries plus their verification result, when a log is configured),
+and `POST /benchmark` (score a list of KYA-labeled records, with an
+optional `threshold`, default 0.5; a malformed record is a 422).
 A verify or checkout answer is `{"ok": true, "reason": "ok"}` or
 `{"accepted": true, "reason": "allowed"}` on success, and the
 fail-closed reason otherwise: `malformed`, `bad_signature`, `revoked`,
@@ -286,12 +324,11 @@ not share revocations, which the tests pin down.
 ## What comes next
 
 v0.1 is the core: credential model, issue and verify, purchase policy, demo,
-and tests. Delegation chains, revocation management, the audit trail, and
-the FastAPI demo service shipped next (see above). The remaining
-iteration, in order:
-
-1. Benchmark hook: score a fraud model on agent traffic using KYA verdicts
-   as labels.
+and tests. Delegation chains, revocation management, the audit trail, the
+FastAPI demo service, and the benchmark hook shipped next (see above). The
+48-hour improvement backlog is now complete: all five items are done, and
+the next step is whatever the AgentRisk link-up needs first, most likely a
+converter from AgentRisk case JSON to benchmark records.
 
 ## License
 

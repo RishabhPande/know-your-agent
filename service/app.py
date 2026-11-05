@@ -18,6 +18,10 @@ Endpoints:
   also records the revocation in the audit log when one is configured).
 - ``GET /audit``: the audit log entries plus their verification result,
   when an audit log is configured; 404 otherwise.
+- ``POST /benchmark``: score a fraud model against KYA-labeled records
+  (``{"records": [...], "threshold": 0.5}``), returning the confusion
+  matrix, precision, recall, F1, accuracy, and AUC. A malformed record
+  is a 422, never a score.
 
 Failure handling is fail-closed all the way down. A malformed credential
 is a ``{"ok": false, "reason": "malformed"}`` response, never a 500 and
@@ -43,6 +47,7 @@ from pydantic import BaseModel
 from kya import (
     RevocationList,
     authorize_purchase,
+    score_model,
     verify_chain,
     verify_credential,
 )
@@ -66,6 +71,11 @@ class RevokeRequest(BaseModel):
     credential: dict | None = None
     credential_id: str | None = None
     reason: str | None = None
+
+
+class BenchmarkRequest(BaseModel):
+    records: list
+    threshold: float = 0.5
 
 
 def _payload_of(credential):
@@ -235,5 +245,12 @@ def create_app(public_key, *, revocations=None, audit=None, audit_public_key=Non
             )
         ok, reason = audit.verify(app.state.audit_public_key)
         return {"ok": ok, "reason": reason, "entries": audit.entries()}
+
+    @app.post("/benchmark")
+    def benchmark(request: BenchmarkRequest):
+        try:
+            return score_model(request.records, threshold=request.threshold)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     return app
