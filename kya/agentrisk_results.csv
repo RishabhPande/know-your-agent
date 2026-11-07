@@ -1,0 +1,19 @@
+policy,class,class_description,is_legitimate,mean_decline_pct,n_seeds,source_file
+Legacy,H,"Legitimate human (desktop or mobile, some with autofill)",legitimate,2.0,5,results/main.csv
+AgentGate,H,"Legitimate human (desktop or mobile, some with autofill)",legitimate,2.0,5,results/main.csv
+Legacy,AU,Legitimate unverified agent,legitimate,94.5,5,results/main.csv
+AgentGate,AU,Legitimate unverified agent,legitimate,7.2,5,results/main.csv
+Legacy,AV,Legitimate verified agent (signature + signed mandate),legitimate,94.6,5,results/main.csv
+AgentGate,AV,Legitimate verified agent (signature + signed mandate),legitimate,1.7,5,results/main.csv
+Legacy,FH,Manual fraud,fraud,71.4,5,results/main.csv
+AgentGate,FH,Manual fraud,fraud,71.2,5,results/main.csv
+Legacy,FB,"Scripted bot fraud (card testing, account takeover)",fraud,100.0,5,results/main.csv
+AgentGate,FB,"Scripted bot fraud (card testing, account takeover)",fraud,99.4,5,results/main.csv
+Legacy,FAU,Fraud via an unverified agent,fraud,98.4,5,results/main.csv
+AgentGate,FAU,Fraud via an unverified agent,fraud,71.4,5,results/main.csv
+Legacy,FAV,Laundering through a permissive agent platform,fraud,98.4,5,results/main.csv
+AgentGate,FAV,Laundering through a permissive agent platform,fraud,92.7,5,results/main.csv
+Legacy,FHJ,Hijacked agent (prompt injection),fraud,96.1,5,results/main.csv
+AgentGate,FHJ,Hijacked agent (prompt injection),fraud,70.2,5,results/main.csv
+Legacy,FSP,Spoofed agent signature,fraud,98.5,5,results/main.csv
+AgentGate,FSP,Spoofed agent signature,fraud,100.0,5,results/main.csv

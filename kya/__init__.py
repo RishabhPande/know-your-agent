@@ -1,5 +1,14 @@
-"""Know Your Agent: the public API surface (v0.1 + delegation + revocation + audit)."""
+"""Know Your Agent: the public API surface (v0.1 + delegation + revocation + audit + benchmark + agentrisk)."""
 
+from .agentrisk import (
+    AGENTRISK_DATASET_URL,
+    AGENTRISK_RESULTS_URL,
+    CLASS_LABELS,
+    bundled_results_path,
+    load_agentrisk_csv,
+    records_from_agentrisk,
+    score_agentrisk_policy,
+)
 from .audit import (
     AUDIT_LOG_VERSION,
     AuditLog,
@@ -55,10 +64,13 @@ from .policy import (
 from .revocation import REVOCATION_LIST_VERSION, RevocationList
 
 __all__ = [
+    "AGENTRISK_DATASET_URL",
+    "AGENTRISK_RESULTS_URL",
     "ALGORITHM",
     "AUDIT_LOG_VERSION",
     "AuditLog",
     "BENCHMARK_VERSION",
+    "CLASS_LABELS",
     "REASON_ALLOWED",
     "REASON_AMOUNT_EXCEEDS_SCOPE",
     "REASON_BAD_CHAIN",
@@ -80,20 +92,24 @@ __all__ = [
     "RevocationList",
     "authorize_purchase",
     "authorize_purchase_chain",
+    "bundled_results_path",
     "check_purchase",
     "delegate_credential",
     "generate_keypair",
     "issue_credential",
     "label_for_reason",
+    "load_agentrisk_csv",
     "load_private_key_pem",
     "load_public_key_pem",
     "make_record",
     "private_key_to_pem",
     "public_key_to_pem",
+    "records_from_agentrisk",
     "records_from_audit",
     "result_from_json",
     "result_to_json",
     "scope_is_subset",
+    "score_agentrisk_policy",
     "score_model",
     "verify_audit_entries",
     "verify_chain",

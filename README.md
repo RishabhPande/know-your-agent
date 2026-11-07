@@ -42,6 +42,8 @@ Scope: up to $50 in electronics. Session: 1 hour.
 9. Audit log (3 entries) verifies: ACCEPTED (ok)
 10. Tampered audit entry (outcome rewritten): REJECTED (bad_hash_chain)
 11. Benchmark (toy model, 3 scored, 1 ambiguous excluded): precision 1.00, recall 1.00, AUC 1.00
+12. AgentRisk Legacy (9 cells): precision 0.75, recall 1.00, AUC 0.89
+12. AgentRisk AgentGate (9 cells): precision 1.00, recall 1.00, AUC 1.00
 ```
 
 Run the tests with:
@@ -264,9 +266,42 @@ pure Python, with ties as half wins, and comes back as `None` when the
 records hold only one class, rather than a made-up number. The service
 exposes the same scoring at `POST /benchmark`. The record format is
 documented in `kya/benchmark.py` so other traffic sources can convert
-to it; the AgentRisk cases (RishabhPande/agentrisk on Hugging Face) are
-the natural next source, since each case already carries an agent
-transaction and an expected verdict.
+to it.
+
+## AgentRisk link-up
+
+The first real traffic for the hook comes from the AgentRisk results
+dataset (RishabhPande/agentrisk on Hugging Face): 18 rows, 2 policies
+(Legacy, AgentGate) by 9 session classes, with each cell's mean decline
+rate across 5 seeds. `kya/agentrisk.py` converts those cells into
+benchmark records: the policy's decline rate for a class is its score,
+and the class ground truth is the label (H, AU, AV legitimate; FH, FB,
+FAU, FAV, FHJ, FSP fraud). Each fraud class maps to the KYA reason that
+best describes how a KYA check would fail it (spoofed signature to
+`bad_signature`, hijacked agent to `revoked`, and so on); the mapping is
+documented in the module. One honest caveat: a cell is an aggregate,
+not a transaction, so the numbers measure how well a policy's decline
+behavior separates fraud classes from legitimate classes at the class
+level, not per-transaction discrimination.
+
+```python
+from kya import load_agentrisk_csv, bundled_results_path, score_agentrisk_policy
+
+rows = load_agentrisk_csv(bundled_results_path())
+records, counts, result = score_agentrisk_policy(rows, "AgentGate")
+# {"precision": 1.0, "recall": 1.0, "auc": 1.0, "tp": 6, "fp": 0, ...}
+```
+
+`bundled_results_path()` points at a snapshot of the published file
+shipped with the package (`kya/agentrisk_results.csv`, copied
+2026-11-07), so the demo and tests run offline. For fresh numbers,
+download `data/results.csv` from the dataset and load that file with
+`load_agentrisk_csv` instead. Per-seed rows from the AgentRisk repo's
+`results/main.csv` work too: they carry `decline` as a fraction and a
+`seed` column, and `records_from_agentrisk` accepts an optional seed
+filter. The demo's step 12 scores both policies on the snapshot:
+Legacy lands at precision 0.75 and AUC 0.89 (it false-declines the
+legitimate agent classes), AgentGate at precision 1.00 and AUC 1.00.
 
 ## FastAPI demo service
 
@@ -325,10 +360,11 @@ not share revocations, which the tests pin down.
 
 v0.1 is the core: credential model, issue and verify, purchase policy, demo,
 and tests. Delegation chains, revocation management, the audit trail, the
-FastAPI demo service, and the benchmark hook shipped next (see above). The
-48-hour improvement backlog is now complete: all five items are done, and
-the next step is whatever the AgentRisk link-up needs first, most likely a
-converter from AgentRisk case JSON to benchmark records.
+FastAPI demo service, the benchmark hook, and the AgentRisk link-up have all
+shipped since (see above). The 48-hour improvement backlog is now complete.
+Candidates for the next loop, uncommitted: per-seed AgentRisk scoring with
+confidence intervals, and a `POST /benchmark/agentrisk` endpoint in the demo
+service.
 
 ## License
 

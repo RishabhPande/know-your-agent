@@ -178,6 +178,35 @@ def main():
         )
     )
 
+    # AgentRisk link-up: score the two published policies on the
+    # AgentRisk results snapshot (18 rows, RishabhPande/agentrisk).
+    # Each row is one (policy, class) cell; the policy's decline
+    # rate for the class is its score and the class ground truth is
+    # the label. Legacy declines legitimate verified agents almost
+    # as often as fraud; AgentGate separates them.
+    from kya.agentrisk import (
+        bundled_results_path,
+        load_agentrisk_csv,
+        score_agentrisk_policy,
+    )
+
+    agentrisk_rows = load_agentrisk_csv(bundled_results_path())
+    for policy in ("Legacy", "AgentGate"):
+        _records, _counts, policy_result = score_agentrisk_policy(
+            agentrisk_rows, policy
+        )
+        print(
+            "12. AgentRisk %s (%d cells): precision %.2f, recall %.2f, "
+            "AUC %.2f"
+            % (
+                policy,
+                policy_result["n_scored"],
+                policy_result["precision"],
+                policy_result["recall"],
+                policy_result["auc"],
+            )
+        )
+
 
 if __name__ == "__main__":
     main()

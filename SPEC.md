@@ -30,9 +30,9 @@ identity: scoped, session-limited, and revocable.
    caught only by an external anchor passed as expected_last_hash.
 
 ## Planned next (not yet shipped)
-- AgentRisk link-up: convert AgentRisk case JSON
-  (RishabhPande/agentrisk) to benchmark records, so the hook scores
-  real agent traffic instead of demo traffic.
+- Backlog complete as of 2026-11-07 (see below). Candidates for the
+  next loop, uncommitted: per-seed AgentRisk scoring with confidence
+  intervals; a POST /benchmark/agentrisk endpoint in the demo service.
 
 ## Shipped since v0.1
 - FastAPI demo service (DONE 2026-11-03: service/app.py, create_app
@@ -78,6 +78,17 @@ identity: scoped, session-limited, and revocable.
    linking back to the AgentRisk work (DONE 2026-11-05: kya/benchmark.py,
    score_model, records_from_audit, POST /benchmark, demo step 11;
    23 new tests, 111 total green).
+7. AgentRisk link-up (DONE 2026-11-07: kya/agentrisk.py,
+   records_from_agentrisk / load_agentrisk_csv /
+   score_agentrisk_policy, class-to-KYA-reason mapping for all 9
+   AgentRisk session classes, bundled 18-row snapshot of the
+   RishabhPande/agentrisk results file; Legacy scores precision 0.75,
+   AUC 0.89 and AgentGate precision 1.00, AUC 1.00 on the snapshot,
+   reproducing the paper headline; demo step 12; 24 new tests,
+   135 total green). Note: the published dataset is a results file
+   (mean decline rate per policy x class), not per-case JSON, so
+   records are class-level cells and the metrics measure class
+   separation, not per-transaction discrimination.
 
 ## Naming and license (suggested)
 - Repo: `know-your-agent` (public)
