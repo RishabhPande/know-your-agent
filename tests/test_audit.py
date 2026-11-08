@@ -311,3 +311,49 @@ def test_empty_log_last_hash_is_genesis():
     log = make_log(private_key)
     assert log.last_hash == AUDIT_GENESIS_HASH
     assert len(log) == 0
+
+
+@pytest.mark.parametrize(
+    'boundary',
+    ['append_input', 'append_result', 'entries', 'get', 'to_dict', 'iterator',
+     'constructor', 'from_dict'],
+)
+def test_nested_detail_is_detached_at_every_log_boundary(boundary):
+    """Mutable nested JSON must never alias the signed internal record."""
+    private_key, public_key = generate_keypair()
+    detail = {'purchase': {'items': [{'sku': 'book', 'quantity': 1}]}}
+    log = AuditLog(private_key)
+    returned = log.append(
+        'issued', 'credential-1', agent_id='agent-1', principal='user-1',
+        outcome='issued', detail=detail,
+        recorded_at='2026-11-08T12:00:00Z',
+    )
+    original_json = log.to_json()
+    original_hash = log.last_hash
+
+    if boundary == 'append_input':
+        exposed = detail
+    elif boundary == 'append_result':
+        exposed = returned['detail']
+    elif boundary == 'entries':
+        exposed = log.entries()[0]['detail']
+    elif boundary == 'get':
+        exposed = log.get(0)['detail']
+    elif boundary == 'to_dict':
+        exposed = log.to_dict()['entries'][0]['detail']
+    elif boundary == 'iterator':
+        exposed = next(iter(log))['detail']
+    else:
+        serialized = log.to_dict()
+        if boundary == 'constructor':
+            log = AuditLog(entries=serialized['entries'])
+        else:
+            log = AuditLog.from_dict(serialized)
+        exposed = serialized['entries'][0]['detail']
+
+    exposed['purchase']['items'][0]['quantity'] = 99
+    exposed['purchase']['items'].append({'sku': 'other', 'quantity': 2})
+
+    assert log.to_json() == original_json
+    assert log.last_hash == original_hash
+    assert log.verify(public_key, expected_last_hash=original_hash) == (True, AUDIT_OK)
