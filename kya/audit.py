@@ -60,6 +60,7 @@ edited after the fact either.
 
 import base64
 import binascii
+import copy
 import hashlib
 import json
 from datetime import datetime, timezone
@@ -154,7 +155,7 @@ def _validate_entry_shape(entry):
         "agent_id": entry["agent_id"],
         "principal": entry["principal"],
         "outcome": entry["outcome"],
-        "detail": dict(detail),
+        "detail": copy.deepcopy(detail),
         "recorded_at": normalized_at,
         "prev_hash": prev_hash,
         "entry_hash": entry_hash,
@@ -338,7 +339,7 @@ class AuditLog:
             "agent_id": agent_id,
             "principal": principal,
             "outcome": outcome,
-            "detail": dict(detail),
+            "detail": copy.deepcopy(detail),
             "recorded_at": normalized_at,
             "prev_hash": prev_hash,
         }
@@ -350,7 +351,7 @@ class AuditLog:
             signature=base64.urlsafe_b64encode(signature).decode("ascii"),
         )
         self._entries.append(entry)
-        return dict(entry, detail=dict(entry["detail"]))
+        return dict(entry, detail=copy.deepcopy(entry["detail"]))
 
     def record_issued(self, credential, *, detail=None, recorded_at=None):
         """Append an ``issued`` entry for a credential dict.
@@ -427,7 +428,10 @@ class AuditLog:
 
     def entries(self):
         """Return copies of all entries, in log order."""
-        return [dict(entry, detail=dict(entry["detail"])) for entry in self._entries]
+        return [
+            dict(entry, detail=copy.deepcopy(entry["detail"]))
+            for entry in self._entries
+        ]
 
     def get(self, index):
         """Return a copy of the entry at index, or None when out of range."""
@@ -436,7 +440,7 @@ class AuditLog:
         if index < 0 or index >= len(self._entries):
             return None
         entry = self._entries[index]
-        return dict(entry, detail=dict(entry["detail"]))
+        return dict(entry, detail=copy.deepcopy(entry["detail"]))
 
     @property
     def last_hash(self):
