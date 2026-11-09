@@ -1,0 +1,496 @@
+seed,policy,cls,decline,stepup,hard_decline
+0,Legacy,H,0.020606666666666665,0.0,0.020606666666666665
+0,Legacy,AU,0.9423,0.0,0.9423
+0,Legacy,AV,0.9437,0.0,0.9437
+0,Legacy,FH,0.7085,0.0,0.7085
+0,Legacy,FB,0.9995,0.0,0.9995
+0,Legacy,FAU,0.9885,0.0,0.9885
+0,Legacy,FAV,0.981,0.0,0.981
+0,Legacy,FHJ,0.956,0.0,0.956
+0,Legacy,FSP,0.984,0.0,0.984
+0,Legacy+Allowlist,H,0.020606666666666665,0.0,0.020606666666666665
+0,Legacy+Allowlist,AU,0.9423,0.0,0.9423
+0,Legacy+Allowlist,AV,0.0,0.0,0.0
+0,Legacy+Allowlist,FH,0.7085,0.0,0.7085
+0,Legacy+Allowlist,FB,0.9995,0.0,0.9995
+0,Legacy+Allowlist,FAU,0.9885,0.0,0.9885
+0,Legacy+Allowlist,FAV,0.0,0.0,0.0
+0,Legacy+Allowlist,FHJ,0.0,0.0,0.0
+0,Legacy+Allowlist,FSP,0.984,0.0,0.984
+0,Retrained,H,0.020533333333333334,0.0,0.020533333333333334
+0,Retrained,AU,0.0365,0.0,0.0365
+0,Retrained,AV,0.0372,0.0,0.0372
+0,Retrained,FH,0.71,0.0,0.71
+0,Retrained,FB,0.9775,0.0,0.9775
+0,Retrained,FAU,0.531,0.0,0.531
+0,Retrained,FAV,0.5325,0.0,0.5325
+0,Retrained,FHJ,0.1415,0.0,0.1415
+0,Retrained,FSP,0.531,0.0,0.531
+0,Retrained+Allowlist,H,0.020533333333333334,0.0,0.020533333333333334
+0,Retrained+Allowlist,AU,0.0365,0.0,0.0365
+0,Retrained+Allowlist,AV,0.0,0.0,0.0
+0,Retrained+Allowlist,FH,0.71,0.0,0.71
+0,Retrained+Allowlist,FB,0.9775,0.0,0.9775
+0,Retrained+Allowlist,FAU,0.531,0.0,0.531
+0,Retrained+Allowlist,FAV,0.0,0.0,0.0
+0,Retrained+Allowlist,FHJ,0.0,0.0,0.0
+0,Retrained+Allowlist,FSP,0.531,0.0,0.531
+0,Identity-aware,H,0.019966666666666667,0.0,0.019966666666666667
+0,Identity-aware,AU,0.0629,0.0,0.0629
+0,Identity-aware,AV,0.0003,0.0,0.0003
+0,Identity-aware,FH,0.703,0.0,0.703
+0,Identity-aware,FB,0.9855,0.0,0.9855
+0,Identity-aware,FAU,0.581,0.0,0.581
+0,Identity-aware,FAV,0.176,0.0,0.176
+0,Identity-aware,FHJ,0.001,0.0,0.001
+0,Identity-aware,FSP,0.2345,0.0,0.2345
+0,AgentGate,H,0.02014,0.0,0.02014
+0,AgentGate,AU,0.069,0.1081,0.0609
+0,AgentGate,AV,0.0182,0.2098,0.0002
+0,AgentGate,FH,0.706,0.0,0.706
+0,AgentGate,FB,0.992,0.0075,0.9845
+0,AgentGate,FAU,0.71,0.129,0.5865
+0,AgentGate,FAV,0.919,0.7925,0.1685
+0,AgentGate,FHJ,0.707,0.7835,0.001
+0,AgentGate,FSP,1.0,0.0,1.0
+0,AgentGate-invariant,H,0.020413333333333332,6.666666666666667e-06,0.020413333333333332
+0,AgentGate-invariant,AU,0.0687,0.1141,0.0601
+0,AgentGate-invariant,AV,0.0185,0.2099,0.0
+0,AgentGate-invariant,FH,0.625,0.0,0.625
+0,AgentGate-invariant,FB,0.953,0.0575,0.8965
+0,AgentGate-invariant,FAU,0.7035,0.1315,0.5785
+0,AgentGate-invariant,FAV,0.937,0.712,0.255
+0,AgentGate-invariant,FHJ,0.7085,0.784,0.0
+0,AgentGate-invariant,FSP,1.0,0.0,1.0
+0,AG -consistency,H,0.0199,0.0,0.0199
+0,AG -consistency,AU,0.0724,0.1046,0.0655
+0,AG -consistency,AV,0.0185,0.2023,0.0002
+0,AG -consistency,FH,0.7155,0.0,0.7155
+0,AG -consistency,FB,0.9935,0.0065,0.987
+0,AG -consistency,FAU,0.7105,0.12,0.595
+0,AG -consistency,FAV,0.92,0.768,0.188
+0,AG -consistency,FHJ,0.1885,0.208,0.001
+0,AG -consistency,FSP,1.0,0.0,1.0
+0,AG -delegation,H,0.019866666666666668,0.0,0.019866666666666668
+0,AG -delegation,AU,0.0646,0.103,0.0574
+0,AG -delegation,AV,0.0009,0.01,0.0002
+0,AG -delegation,FH,0.712,0.0,0.712
+0,AG -delegation,FB,0.992,0.008,0.984
+0,AG -delegation,FAU,0.694,0.122,0.5785
+0,AG -delegation,FAV,0.302,0.074,0.2315
+0,AG -delegation,FHJ,0.6565,0.7215,0.0025
+0,AG -delegation,FSP,1.0,0.0,1.0
+0,AG ML-only,H,0.02014,0.0,0.02014
+0,AG ML-only,AU,0.0609,0.0,0.0609
+0,AG ML-only,AV,0.0002,0.0,0.0002
+0,AG ML-only,FH,0.706,0.0,0.706
+0,AG ML-only,FB,0.9845,0.0,0.9845
+0,AG ML-only,FAU,0.5865,0.0,0.5865
+0,AG ML-only,FAV,0.1685,0.0,0.1685
+0,AG ML-only,FHJ,0.001,0.0,0.001
+0,AG ML-only,FSP,0.3165,0.0,0.3165
+0,AG -stepup(unverified),H,0.02014,0.0,0.02014
+0,AG -stepup(unverified),AU,0.0609,0.0,0.0609
+0,AG -stepup(unverified),AV,0.0167,0.2098,0.0002
+0,AG -stepup(unverified),FH,0.706,0.0,0.706
+0,AG -stepup(unverified),FB,0.9845,0.0,0.9845
+0,AG -stepup(unverified),FAU,0.5865,0.0,0.5865
+0,AG -stepup(unverified),FAV,0.9205,0.7925,0.1685
+0,AG -stepup(unverified),FHJ,0.7005,0.7835,0.001
+0,AG -stepup(unverified),FSP,1.0,0.0,1.0
+1,Legacy,H,0.01952,0.0,0.01952
+1,Legacy,AU,0.9549,0.0,0.9549
+1,Legacy,AV,0.9497,0.0,0.9497
+1,Legacy,FH,0.7065,0.0,0.7065
+1,Legacy,FB,1.0,0.0,1.0
+1,Legacy,FAU,0.9815,0.0,0.9815
+1,Legacy,FAV,0.9835,0.0,0.9835
+1,Legacy,FHJ,0.963,0.0,0.963
+1,Legacy,FSP,0.9885,0.0,0.9885
+1,Legacy+Allowlist,H,0.01952,0.0,0.01952
+1,Legacy+Allowlist,AU,0.9549,0.0,0.9549
+1,Legacy+Allowlist,AV,0.0,0.0,0.0
+1,Legacy+Allowlist,FH,0.7065,0.0,0.7065
+1,Legacy+Allowlist,FB,1.0,0.0,1.0
+1,Legacy+Allowlist,FAU,0.9815,0.0,0.9815
+1,Legacy+Allowlist,FAV,0.0,0.0,0.0
+1,Legacy+Allowlist,FHJ,0.0,0.0,0.0
+1,Legacy+Allowlist,FSP,0.9885,0.0,0.9885
+1,Retrained,H,0.020126666666666668,0.0,0.020126666666666668
+1,Retrained,AU,0.0406,0.0,0.0406
+1,Retrained,AV,0.0429,0.0,0.0429
+1,Retrained,FH,0.706,0.0,0.706
+1,Retrained,FB,0.982,0.0,0.982
+1,Retrained,FAU,0.5425,0.0,0.5425
+1,Retrained,FAV,0.554,0.0,0.554
+1,Retrained,FHJ,0.1755,0.0,0.1755
+1,Retrained,FSP,0.5365,0.0,0.5365
+1,Retrained+Allowlist,H,0.020126666666666668,0.0,0.020126666666666668
+1,Retrained+Allowlist,AU,0.0406,0.0,0.0406
+1,Retrained+Allowlist,AV,0.0,0.0,0.0
+1,Retrained+Allowlist,FH,0.706,0.0,0.706
+1,Retrained+Allowlist,FB,0.982,0.0,0.982
+1,Retrained+Allowlist,FAU,0.5425,0.0,0.5425
+1,Retrained+Allowlist,FAV,0.0,0.0,0.0
+1,Retrained+Allowlist,FHJ,0.0,0.0,0.0
+1,Retrained+Allowlist,FSP,0.5365,0.0,0.5365
+1,Identity-aware,H,0.02002666666666667,0.0,0.02002666666666667
+1,Identity-aware,AU,0.0694,0.0,0.0694
+1,Identity-aware,AV,0.0,0.0,0.0
+1,Identity-aware,FH,0.7135,0.0,0.7135
+1,Identity-aware,FB,0.989,0.0,0.989
+1,Identity-aware,FAU,0.599,0.0,0.599
+1,Identity-aware,FAV,0.1695,0.0,0.1695
+1,Identity-aware,FHJ,0.0015,0.0,0.0015
+1,Identity-aware,FSP,0.2775,0.0,0.2775
+1,AgentGate,H,0.019946666666666668,1.3333333333333333e-05,0.019933333333333334
+1,AgentGate,AU,0.0758,0.1004,0.0684
+1,AgentGate,AV,0.0151,0.2079,0.0001
+1,AgentGate,FH,0.709,0.0,0.709
+1,AgentGate,FB,0.996,0.0085,0.988
+1,AgentGate,FAU,0.712,0.1255,0.595
+1,AgentGate,FAV,0.9075,0.7985,0.165
+1,AgentGate,FHJ,0.709,0.778,0.0015
+1,AgentGate,FSP,1.0,0.0,1.0
+1,AgentGate-invariant,H,0.020913333333333332,2e-05,0.020913333333333332
+1,AgentGate-invariant,AU,0.0722,0.1098,0.0615
+1,AgentGate-invariant,AV,0.0175,0.2079,0.0
+1,AgentGate-invariant,FH,0.62,0.0,0.62
+1,AgentGate-invariant,FB,0.9635,0.0465,0.9175
+1,AgentGate-invariant,FAU,0.7045,0.133,0.58
+1,AgentGate-invariant,FAV,0.934,0.7135,0.2575
+1,AgentGate-invariant,FHJ,0.7025,0.7795,0.0
+1,AgentGate-invariant,FSP,1.0,0.0,1.0
+1,AG -consistency,H,0.019613333333333333,1.3333333333333333e-05,0.019613333333333333
+1,AG -consistency,AU,0.0774,0.1034,0.0684
+1,AG -consistency,AV,0.0172,0.2001,0.0001
+1,AG -consistency,FH,0.7015,0.0,0.7015
+1,AG -consistency,FB,0.9965,0.0075,0.989
+1,AG -consistency,FAU,0.715,0.136,0.586
+1,AG -consistency,FAV,0.9275,0.6885,0.2765
+1,AG -consistency,FHJ,0.192,0.2115,0.001
+1,AG -consistency,FSP,1.0,0.0,1.0
+1,AG -delegation,H,0.019826666666666666,1.3333333333333333e-05,0.019826666666666666
+1,AG -delegation,AU,0.0731,0.0979,0.0659
+1,AG -delegation,AV,0.0011,0.0104,0.0001
+1,AG -delegation,FH,0.705,0.0,0.705
+1,AG -delegation,FB,0.995,0.008,0.987
+1,AG -delegation,FAU,0.7105,0.1235,0.5955
+1,AG -delegation,FAV,0.2635,0.0825,0.185
+1,AG -delegation,FHJ,0.6595,0.721,0.002
+1,AG -delegation,FSP,1.0,0.0,1.0
+1,AG ML-only,H,0.019933333333333334,0.0,0.019933333333333334
+1,AG ML-only,AU,0.0684,0.0,0.0684
+1,AG ML-only,AV,0.0001,0.0,0.0001
+1,AG ML-only,FH,0.709,0.0,0.709
+1,AG ML-only,FB,0.988,0.0,0.988
+1,AG ML-only,FAU,0.595,0.0,0.595
+1,AG ML-only,FAV,0.165,0.0,0.165
+1,AG ML-only,FHJ,0.0015,0.0,0.0015
+1,AG ML-only,FSP,0.3745,0.0,0.3745
+1,AG -stepup(unverified),H,0.019933333333333334,0.0,0.019933333333333334
+1,AG -stepup(unverified),AU,0.0684,0.0,0.0684
+1,AG -stepup(unverified),AV,0.0164,0.2079,0.0001
+1,AG -stepup(unverified),FH,0.709,0.0,0.709
+1,AG -stepup(unverified),FB,0.988,0.0,0.988
+1,AG -stepup(unverified),FAU,0.595,0.0,0.595
+1,AG -stepup(unverified),FAV,0.9285,0.7985,0.165
+1,AG -stepup(unverified),FHJ,0.697,0.778,0.0015
+1,AG -stepup(unverified),FSP,1.0,0.0,1.0
+2,Legacy,H,0.02042,0.0,0.02042
+2,Legacy,AU,0.946,0.0,0.946
+2,Legacy,AV,0.9481,0.0,0.9481
+2,Legacy,FH,0.7295,0.0,0.7295
+2,Legacy,FB,0.998,0.0,0.998
+2,Legacy,FAU,0.983,0.0,0.983
+2,Legacy,FAV,0.984,0.0,0.984
+2,Legacy,FHJ,0.96,0.0,0.96
+2,Legacy,FSP,0.984,0.0,0.984
+2,Legacy+Allowlist,H,0.02042,0.0,0.02042
+2,Legacy+Allowlist,AU,0.946,0.0,0.946
+2,Legacy+Allowlist,AV,0.0,0.0,0.0
+2,Legacy+Allowlist,FH,0.7295,0.0,0.7295
+2,Legacy+Allowlist,FB,0.998,0.0,0.998
+2,Legacy+Allowlist,FAU,0.983,0.0,0.983
+2,Legacy+Allowlist,FAV,0.0,0.0,0.0
+2,Legacy+Allowlist,FHJ,0.0,0.0,0.0
+2,Legacy+Allowlist,FSP,0.984,0.0,0.984
+2,Retrained,H,0.0202,0.0,0.0202
+2,Retrained,AU,0.0425,0.0,0.0425
+2,Retrained,AV,0.0447,0.0,0.0447
+2,Retrained,FH,0.731,0.0,0.731
+2,Retrained,FB,0.975,0.0,0.975
+2,Retrained,FAU,0.5575,0.0,0.5575
+2,Retrained,FAV,0.532,0.0,0.532
+2,Retrained,FHJ,0.1525,0.0,0.1525
+2,Retrained,FSP,0.573,0.0,0.573
+2,Retrained+Allowlist,H,0.0202,0.0,0.0202
+2,Retrained+Allowlist,AU,0.0425,0.0,0.0425
+2,Retrained+Allowlist,AV,0.0,0.0,0.0
+2,Retrained+Allowlist,FH,0.731,0.0,0.731
+2,Retrained+Allowlist,FB,0.975,0.0,0.975
+2,Retrained+Allowlist,FAU,0.5575,0.0,0.5575
+2,Retrained+Allowlist,FAV,0.0,0.0,0.0
+2,Retrained+Allowlist,FHJ,0.0,0.0,0.0
+2,Retrained+Allowlist,FSP,0.573,0.0,0.573
+2,Identity-aware,H,0.020073333333333332,0.0,0.020073333333333332
+2,Identity-aware,AU,0.0693,0.0,0.0693
+2,Identity-aware,AV,0.0002,0.0,0.0002
+2,Identity-aware,FH,0.7325,0.0,0.7325
+2,Identity-aware,FB,0.982,0.0,0.982
+2,Identity-aware,FAU,0.6095,0.0,0.6095
+2,Identity-aware,FAV,0.1715,0.0,0.1715
+2,Identity-aware,FHJ,0.0015,0.0,0.0015
+2,Identity-aware,FSP,0.281,0.0,0.281
+2,AgentGate,H,0.019746666666666666,6.666666666666667e-06,0.019746666666666666
+2,AgentGate,AU,0.0712,0.0959,0.0645
+2,AgentGate,AV,0.0177,0.2089,0.0002
+2,AgentGate,FH,0.724,0.0,0.724
+2,AgentGate,FB,0.991,0.008,0.983
+2,AgentGate,FAU,0.7305,0.1315,0.606
+2,AgentGate,FAV,0.94,0.74,0.2345
+2,AgentGate,FHJ,0.7135,0.788,0.001
+2,AgentGate,FSP,1.0,0.0,1.0
+2,AgentGate-invariant,H,0.020033333333333334,6.666666666666667e-06,0.020033333333333334
+2,AgentGate-invariant,AU,0.0694,0.1087,0.06
+2,AgentGate-invariant,AV,0.016,0.2089,0.0
+2,AgentGate-invariant,FH,0.6205,0.0,0.6205
+2,AgentGate-invariant,FB,0.954,0.0515,0.905
+2,AgentGate-invariant,FAU,0.712,0.119,0.5975
+2,AgentGate-invariant,FAV,0.9405,0.7285,0.2455
+2,AgentGate-invariant,FHJ,0.6975,0.788,0.001
+2,AgentGate-invariant,FSP,1.0,0.0,1.0
+2,AG -consistency,H,0.019966666666666667,6.666666666666667e-06,0.019966666666666667
+2,AG -consistency,AU,0.0734,0.0964,0.0646
+2,AG -consistency,AV,0.0169,0.2001,0.0002
+2,AG -consistency,FH,0.7335,0.0,0.7335
+2,AG -consistency,FB,0.991,0.01,0.982
+2,AG -consistency,FAU,0.727,0.1295,0.603
+2,AG -consistency,FAV,0.925,0.7625,0.2075
+2,AG -consistency,FHJ,0.1855,0.205,0.0015
+2,AG -consistency,FSP,1.0,0.0,1.0
+2,AG -delegation,H,0.019886666666666667,0.0,0.019886666666666667
+2,AG -delegation,AU,0.0749,0.0983,0.0679
+2,AG -delegation,AV,0.0008,0.0108,0.0004
+2,AG -delegation,FH,0.719,0.0,0.719
+2,AG -delegation,FB,0.991,0.009,0.983
+2,AG -delegation,FAU,0.72,0.124,0.604
+2,AG -delegation,FAV,0.2495,0.0905,0.163
+2,AG -delegation,FHJ,0.672,0.7265,0.001
+2,AG -delegation,FSP,1.0,0.0,1.0
+2,AG ML-only,H,0.019746666666666666,0.0,0.019746666666666666
+2,AG ML-only,AU,0.0645,0.0,0.0645
+2,AG ML-only,AV,0.0002,0.0,0.0002
+2,AG ML-only,FH,0.724,0.0,0.724
+2,AG ML-only,FB,0.983,0.0,0.983
+2,AG ML-only,FAU,0.606,0.0,0.606
+2,AG ML-only,FAV,0.2345,0.0,0.2345
+2,AG ML-only,FHJ,0.001,0.0,0.001
+2,AG ML-only,FSP,0.3785,0.0,0.3785
+2,AG -stepup(unverified),H,0.019746666666666666,0.0,0.019746666666666666
+2,AG -stepup(unverified),AU,0.0645,0.0,0.0645
+2,AG -stepup(unverified),AV,0.0149,0.2089,0.0002
+2,AG -stepup(unverified),FH,0.724,0.0,0.724
+2,AG -stepup(unverified),FB,0.983,0.0,0.983
+2,AG -stepup(unverified),FAU,0.606,0.0,0.606
+2,AG -stepup(unverified),FAV,0.937,0.74,0.2345
+2,AG -stepup(unverified),FHJ,0.712,0.788,0.001
+2,AG -stepup(unverified),FSP,1.0,0.0,1.0
+3,Legacy,H,0.019186666666666668,0.0,0.019186666666666668
+3,Legacy,AU,0.9341,0.0,0.9341
+3,Legacy,AV,0.9388,0.0,0.9388
+3,Legacy,FH,0.7215,0.0,0.7215
+3,Legacy,FB,1.0,0.0,1.0
+3,Legacy,FAU,0.9825,0.0,0.9825
+3,Legacy,FAV,0.9855,0.0,0.9855
+3,Legacy,FHJ,0.961,0.0,0.961
+3,Legacy,FSP,0.983,0.0,0.983
+3,Legacy+Allowlist,H,0.019186666666666668,0.0,0.019186666666666668
+3,Legacy+Allowlist,AU,0.9341,0.0,0.9341
+3,Legacy+Allowlist,AV,0.0,0.0,0.0
+3,Legacy+Allowlist,FH,0.7215,0.0,0.7215
+3,Legacy+Allowlist,FB,1.0,0.0,1.0
+3,Legacy+Allowlist,FAU,0.9825,0.0,0.9825
+3,Legacy+Allowlist,FAV,0.0,0.0,0.0
+3,Legacy+Allowlist,FHJ,0.0,0.0,0.0
+3,Legacy+Allowlist,FSP,0.983,0.0,0.983
+3,Retrained,H,0.019193333333333333,0.0,0.019193333333333333
+3,Retrained,AU,0.0371,0.0,0.0371
+3,Retrained,AV,0.0391,0.0,0.0391
+3,Retrained,FH,0.719,0.0,0.719
+3,Retrained,FB,0.9725,0.0,0.9725
+3,Retrained,FAU,0.5375,0.0,0.5375
+3,Retrained,FAV,0.5375,0.0,0.5375
+3,Retrained,FHJ,0.1385,0.0,0.1385
+3,Retrained,FSP,0.5375,0.0,0.5375
+3,Retrained+Allowlist,H,0.019193333333333333,0.0,0.019193333333333333
+3,Retrained+Allowlist,AU,0.0371,0.0,0.0371
+3,Retrained+Allowlist,AV,0.0,0.0,0.0
+3,Retrained+Allowlist,FH,0.719,0.0,0.719
+3,Retrained+Allowlist,FB,0.9725,0.0,0.9725
+3,Retrained+Allowlist,FAU,0.5375,0.0,0.5375
+3,Retrained+Allowlist,FAV,0.0,0.0,0.0
+3,Retrained+Allowlist,FHJ,0.0,0.0,0.0
+3,Retrained+Allowlist,FSP,0.5375,0.0,0.5375
+3,Identity-aware,H,0.019086666666666665,0.0,0.019086666666666665
+3,Identity-aware,AU,0.0548,0.0,0.0548
+3,Identity-aware,AV,0.0004,0.0,0.0004
+3,Identity-aware,FH,0.7115,0.0,0.7115
+3,Identity-aware,FB,0.9805,0.0,0.9805
+3,Identity-aware,FAU,0.5845,0.0,0.5845
+3,Identity-aware,FAV,0.195,0.0,0.195
+3,Identity-aware,FHJ,0.003,0.0,0.003
+3,Identity-aware,FSP,0.3025,0.0,0.3025
+3,AgentGate,H,0.019146666666666666,0.0,0.019146666666666666
+3,AgentGate,AU,0.0682,0.105,0.0567
+3,AgentGate,AV,0.0155,0.2003,0.0001
+3,AgentGate,FH,0.718,0.0,0.718
+3,AgentGate,FB,0.994,0.0155,0.9795
+3,AgentGate,FAU,0.696,0.127,0.5755
+3,AgentGate,FAV,0.9375,0.732,0.235
+3,AgentGate,FHJ,0.6965,0.778,0.001
+3,AgentGate,FSP,1.0,0.0,1.0
+3,AgentGate-invariant,H,0.019546666666666667,0.0,0.019546666666666667
+3,AgentGate-invariant,AU,0.0639,0.1101,0.0549
+3,AgentGate-invariant,AV,0.0162,0.2003,0.0001
+3,AgentGate-invariant,FH,0.634,0.0,0.634
+3,AgentGate-invariant,FB,0.958,0.056,0.9055
+3,AgentGate-invariant,FAU,0.6985,0.131,0.572
+3,AgentGate-invariant,FAV,0.9375,0.703,0.2645
+3,AgentGate-invariant,FHJ,0.7005,0.7785,0.0005
+3,AgentGate-invariant,FSP,1.0,0.0,1.0
+3,AG -consistency,H,0.01916,0.0,0.01916
+3,AG -consistency,AU,0.0679,0.1065,0.0578
+3,AG -consistency,AV,0.0168,0.1924,0.0004
+3,AG -consistency,FH,0.714,0.0,0.714
+3,AG -consistency,FB,0.993,0.0165,0.9775
+3,AG -consistency,FAU,0.701,0.1275,0.5835
+3,AG -consistency,FAV,0.9165,0.784,0.1735
+3,AG -consistency,FHJ,0.156,0.1745,0.001
+3,AG -consistency,FSP,1.0,0.0,1.0
+3,AG -delegation,H,0.018933333333333333,6.666666666666667e-06,0.018933333333333333
+3,AG -delegation,AU,0.0638,0.1055,0.0562
+3,AG -delegation,AV,0.0012,0.0103,0.0001
+3,AG -delegation,FH,0.725,0.0,0.725
+3,AG -delegation,FB,0.994,0.015,0.98
+3,AG -delegation,FAU,0.697,0.121,0.583
+3,AG -delegation,FAV,0.2475,0.0805,0.17
+3,AG -delegation,FHJ,0.657,0.728,0.001
+3,AG -delegation,FSP,1.0,0.0,1.0
+3,AG ML-only,H,0.019146666666666666,0.0,0.019146666666666666
+3,AG ML-only,AU,0.0567,0.0,0.0567
+3,AG ML-only,AV,0.0001,0.0,0.0001
+3,AG ML-only,FH,0.718,0.0,0.718
+3,AG ML-only,FB,0.9795,0.0,0.9795
+3,AG ML-only,FAU,0.5755,0.0,0.5755
+3,AG ML-only,FAV,0.235,0.0,0.235
+3,AG ML-only,FHJ,0.001,0.0,0.001
+3,AG ML-only,FSP,0.332,0.0,0.332
+3,AG -stepup(unverified),H,0.019146666666666666,0.0,0.019146666666666666
+3,AG -stepup(unverified),AU,0.0567,0.0,0.0567
+3,AG -stepup(unverified),AV,0.0157,0.2003,0.0001
+3,AG -stepup(unverified),FH,0.718,0.0,0.718
+3,AG -stepup(unverified),FB,0.9795,0.0,0.9795
+3,AG -stepup(unverified),FAU,0.5755,0.0,0.5755
+3,AG -stepup(unverified),FAV,0.929,0.732,0.235
+3,AG -stepup(unverified),FHJ,0.697,0.778,0.001
+3,AG -stepup(unverified),FSP,1.0,0.0,1.0
+4,Legacy,H,0.020406666666666667,0.0,0.020406666666666667
+4,Legacy,AU,0.9481,0.0,0.9481
+4,Legacy,AV,0.952,0.0,0.952
+4,Legacy,FH,0.7015,0.0,0.7015
+4,Legacy,FB,1.0,0.0,1.0
+4,Legacy,FAU,0.9865,0.0,0.9865
+4,Legacy,FAV,0.986,0.0,0.986
+4,Legacy,FHJ,0.966,0.0,0.966
+4,Legacy,FSP,0.986,0.0,0.986
+4,Legacy+Allowlist,H,0.020406666666666667,0.0,0.020406666666666667
+4,Legacy+Allowlist,AU,0.9481,0.0,0.9481
+4,Legacy+Allowlist,AV,0.0,0.0,0.0
+4,Legacy+Allowlist,FH,0.7015,0.0,0.7015
+4,Legacy+Allowlist,FB,1.0,0.0,1.0
+4,Legacy+Allowlist,FAU,0.9865,0.0,0.9865
+4,Legacy+Allowlist,FAV,0.0,0.0,0.0
+4,Legacy+Allowlist,FHJ,0.0,0.0,0.0
+4,Legacy+Allowlist,FSP,0.986,0.0,0.986
+4,Retrained,H,0.020153333333333332,0.0,0.020153333333333332
+4,Retrained,AU,0.0381,0.0,0.0381
+4,Retrained,AV,0.0398,0.0,0.0398
+4,Retrained,FH,0.7045,0.0,0.7045
+4,Retrained,FB,0.9825,0.0,0.9825
+4,Retrained,FAU,0.512,0.0,0.512
+4,Retrained,FAV,0.511,0.0,0.511
+4,Retrained,FHJ,0.156,0.0,0.156
+4,Retrained,FSP,0.492,0.0,0.492
+4,Retrained+Allowlist,H,0.020153333333333332,0.0,0.020153333333333332
+4,Retrained+Allowlist,AU,0.0381,0.0,0.0381
+4,Retrained+Allowlist,AV,0.0,0.0,0.0
+4,Retrained+Allowlist,FH,0.7045,0.0,0.7045
+4,Retrained+Allowlist,FB,0.9825,0.0,0.9825
+4,Retrained+Allowlist,FAU,0.512,0.0,0.512
+4,Retrained+Allowlist,FAV,0.0,0.0,0.0
+4,Retrained+Allowlist,FHJ,0.0,0.0,0.0
+4,Retrained+Allowlist,FSP,0.492,0.0,0.492
+4,Identity-aware,H,0.0205,0.0,0.0205
+4,Identity-aware,AU,0.066,0.0,0.066
+4,Identity-aware,AV,0.0002,0.0,0.0002
+4,Identity-aware,FH,0.705,0.0,0.705
+4,Identity-aware,FB,0.9895,0.0,0.9895
+4,Identity-aware,FAU,0.613,0.0,0.613
+4,Identity-aware,FAV,0.209,0.0,0.209
+4,Identity-aware,FHJ,0.0035,0.0,0.0035
+4,Identity-aware,FSP,0.32,0.0,0.32
+4,AgentGate,H,0.02068,6.666666666666667e-06,0.02068
+4,AgentGate,AU,0.0755,0.0996,0.067
+4,AgentGate,AV,0.016,0.2114,0.0003
+4,AgentGate,FH,0.703,0.0,0.703
+4,AgentGate,FB,0.9955,0.008,0.9885
+4,AgentGate,FAU,0.7195,0.11,0.614
+4,AgentGate,FAV,0.9305,0.774,0.195
+4,AgentGate,FHJ,0.684,0.7715,0.003
+4,AgentGate,FSP,1.0,0.0,1.0
+4,AgentGate-invariant,H,0.020473333333333333,0.0,0.020473333333333333
+4,AgentGate-invariant,AU,0.0703,0.1112,0.0613
+4,AgentGate-invariant,AV,0.0159,0.2114,0.0001
+4,AgentGate-invariant,FH,0.615,0.0,0.615
+4,AgentGate-invariant,FB,0.9555,0.0515,0.905
+4,AgentGate-invariant,FAU,0.711,0.1345,0.583
+4,AgentGate-invariant,FAV,0.933,0.7345,0.2395
+4,AgentGate-invariant,FHJ,0.696,0.7735,0.0
+4,AgentGate-invariant,FSP,1.0,0.0,1.0
+4,AG -consistency,H,0.020046666666666667,6.666666666666667e-06,0.020046666666666667
+4,AG -consistency,AU,0.0756,0.1052,0.0658
+4,AG -consistency,AV,0.0163,0.2025,0.0002
+4,AG -consistency,FH,0.703,0.0,0.703
+4,AG -consistency,FB,0.9965,0.009,0.988
+4,AG -consistency,FAU,0.73,0.1235,0.6105
+4,AG -consistency,FAV,0.929,0.763,0.203
+4,AG -consistency,FHJ,0.1695,0.1875,0.0025
+4,AG -consistency,FSP,1.0,0.0,1.0
+4,AG -delegation,H,0.02036666666666667,0.0,0.02036666666666667
+4,AG -delegation,AU,0.0758,0.1043,0.0681
+4,AG -delegation,AV,0.0012,0.012,0.0003
+4,AG -delegation,FH,0.7045,0.0,0.7045
+4,AG -delegation,FB,0.997,0.008,0.989
+4,AG -delegation,FAU,0.7335,0.1225,0.6155
+4,AG -delegation,FAV,0.3585,0.08,0.2805
+4,AG -delegation,FHJ,0.652,0.7205,0.0025
+4,AG -delegation,FSP,1.0,0.0,1.0
+4,AG ML-only,H,0.02068,0.0,0.02068
+4,AG ML-only,AU,0.067,0.0,0.067
+4,AG ML-only,AV,0.0003,0.0,0.0003
+4,AG ML-only,FH,0.703,0.0,0.703
+4,AG ML-only,FB,0.9885,0.0,0.9885
+4,AG ML-only,FAU,0.614,0.0,0.614
+4,AG ML-only,FAV,0.195,0.0,0.195
+4,AG ML-only,FHJ,0.003,0.0,0.003
+4,AG ML-only,FSP,0.336,0.0,0.336
+4,AG -stepup(unverified),H,0.02068,0.0,0.02068
+4,AG -stepup(unverified),AU,0.067,0.0,0.067
+4,AG -stepup(unverified),AV,0.0175,0.2114,0.0003
+4,AG -stepup(unverified),FH,0.703,0.0,0.703
+4,AG -stepup(unverified),FB,0.9885,0.0,0.9885
+4,AG -stepup(unverified),FAU,0.614,0.0,0.614
+4,AG -stepup(unverified),FAV,0.936,0.774,0.195
+4,AG -stepup(unverified),FHJ,0.702,0.7715,0.003
+4,AG -stepup(unverified),FSP,1.0,0.0,1.0

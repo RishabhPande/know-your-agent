@@ -44,6 +44,8 @@ Scope: up to $50 in electronics. Session: 1 hour.
 11. Benchmark (toy model, 3 scored, 1 ambiguous excluded): precision 1.00, recall 1.00, AUC 1.00
 12. AgentRisk Legacy (9 cells): precision 0.75, recall 1.00, AUC 0.89
 12. AgentRisk AgentGate (9 cells): precision 1.00, recall 1.00, AUC 1.00
+13. AgentRisk Legacy per seed (5 seeds): mean AUC 0.89, 95% CI [0.89, 0.89]
+13. AgentRisk AgentGate per seed (5 seeds): mean AUC 1.00, 95% CI [1.00, 1.00]
 ```
 
 Run the tests with:
@@ -303,6 +305,36 @@ filter. The demo's step 12 scores both policies on the snapshot:
 Legacy lands at precision 0.75 and AUC 0.89 (it false-declines the
 legitimate agent classes), AgentGate at precision 1.00 and AUC 1.00.
 
+### Per-seed scoring with confidence intervals
+
+A headline from the means file cannot say whether the number is
+stable or a one-seed artifact. `score_agentrisk_policy_per_seed`
+scores each seed separately and summarizes every metric (precision,
+recall, F1, accuracy, AUC) with a Student's t confidence interval,
+so the headline comes with its spread. It needs rows with a `seed`
+column; `bundled_per_seed_results_path()` points at a snapshot of
+`results/main.csv` from the AgentRisk repo (`kya/agentrisk_per_seed_results.csv`,
+copied 2026-11-09: 495 rows, 5 seeds, 11 policies). A metric
+undefined on a seed (no fraud to find, say) is left out of that
+metric's summary and counted, never treated as zero.
+
+```python
+from kya import load_agentrisk_csv, bundled_per_seed_results_path
+from kya import score_agentrisk_policy_per_seed
+
+rows = load_agentrisk_csv(bundled_per_seed_results_path())
+per_seed, summary = score_agentrisk_policy_per_seed(rows, "Legacy")
+# summary["metrics"]["auc"] is {"n": 5, "mean": 0.889, "std": 0.0,
+#   "ci_low": 0.889, "ci_high": 0.889, ...}
+```
+
+On this snapshot both policies are identical on every seed at
+threshold 0.5, so their 95 percent intervals have zero width. The
+decline rates do vary by seed (88 of 99 cells), but none of that
+variation crosses the threshold, so the honest reading is that the
+headline is seed-stable, not seed-sensitive. The demo's step 13
+prints the per-seed mean AUC with its interval for both policies.
+
 ## FastAPI demo service
 
 `service/app.py` puts the same checks behind HTTP, so a merchant can
@@ -361,10 +393,10 @@ not share revocations, which the tests pin down.
 v0.1 is the core: credential model, issue and verify, purchase policy, demo,
 and tests. Delegation chains, revocation management, the audit trail, the
 FastAPI demo service, the benchmark hook, and the AgentRisk link-up have all
-shipped since (see above). The 48-hour improvement backlog is now complete.
-Candidates for the next loop, uncommitted: per-seed AgentRisk scoring with
-confidence intervals, and a `POST /benchmark/agentrisk` endpoint in the demo
-service.
+shipped since (see above). Per-seed AgentRisk scoring with confidence
+intervals shipped 2026-11-09, so the backlog is now complete and the
+next loop has one uncommitted candidate left: a
+`POST /benchmark/agentrisk` endpoint in the demo service.
 
 ## License
 

@@ -207,6 +207,35 @@ def main():
             )
         )
 
+    # Per-seed scoring: the means file collapses the 5 seeds, so step
+    # 12 cannot say whether its headline is stable. Score each seed
+    # separately and report the mean AUC with a 95 percent t
+    # interval. On this snapshot both policies are identical on
+    # every seed at threshold 0.5, so the intervals have zero width:
+    # the headline is seed-stable, not a one-seed artifact.
+    from kya.agentrisk import (
+        bundled_per_seed_results_path,
+        score_agentrisk_policy_per_seed,
+    )
+
+    per_seed_rows = load_agentrisk_csv(bundled_per_seed_results_path())
+    for policy in ("Legacy", "AgentGate"):
+        _per_seed, seed_summary = score_agentrisk_policy_per_seed(
+            per_seed_rows, policy
+        )
+        auc = seed_summary["metrics"]["auc"]
+        print(
+            "13. AgentRisk %s per seed (%d seeds): mean AUC %.2f, "
+            "95%% CI [%.2f, %.2f]"
+            % (
+                policy,
+                seed_summary["n_seeds"],
+                auc["mean"],
+                auc["ci_low"],
+                auc["ci_high"],
+            )
+        )
+
 
 if __name__ == "__main__":
     main()

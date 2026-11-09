@@ -30,9 +30,9 @@ identity: scoped, session-limited, and revocable.
    caught only by an external anchor passed as expected_last_hash.
 
 ## Planned next (not yet shipped)
-- Backlog complete as of 2026-11-07 (see below). Candidates for the
-  next loop, uncommitted: per-seed AgentRisk scoring with confidence
-  intervals; a POST /benchmark/agentrisk endpoint in the demo service.
+- Backlog complete as of 2026-11-09 (see below). Candidate for the
+  next loop, uncommitted: a POST /benchmark/agentrisk endpoint in the
+  demo service.
 
 ## Shipped since v0.1
 - FastAPI demo service (DONE 2026-11-03: service/app.py, create_app
@@ -78,6 +78,15 @@ identity: scoped, session-limited, and revocable.
    linking back to the AgentRisk work (DONE 2026-11-05: kya/benchmark.py,
    score_model, records_from_audit, POST /benchmark, demo step 11;
    23 new tests, 111 total green).
+- Per-seed AgentRisk scoring with confidence intervals (DONE
+  2026-11-09: kya/agentrisk.py, score_agentrisk_policy_per_seed
+  with summarize_values, Student's t intervals at 0.90/0.95/0.99
+  clipped to [0, 1], per-metric defined-seed counts, bundled
+  per-seed snapshot kya/agentrisk_per_seed_results.csv, 495 rows
+  from results/main.csv in the AgentRisk repo; Legacy and AgentGate
+  headlines are identical on all 5 seeds at threshold 0.5, so
+  their 95 percent intervals have zero width; demo step 13; 16
+  new tests, 159 total green).
 7. AgentRisk link-up (DONE 2026-11-07: kya/agentrisk.py,
    records_from_agentrisk / load_agentrisk_csv /
    score_agentrisk_policy, class-to-KYA-reason mapping for all 9

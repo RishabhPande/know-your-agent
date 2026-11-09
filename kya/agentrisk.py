@@ -69,6 +69,20 @@ matching the rest of the toolkit: an unknown session class, a
 policy that matches no rows, a decline rate outside its range, a
 non-numeric score, an ``is_legitimate`` value that disagrees with
 the class code, or a seed filter on rows that carry no seed.
+
+Per-seed scoring: the published means file collapses the 5 seeds,
+so a headline computed from it cannot say whether the number is
+stable or a one-seed artifact. ``score_agentrisk_policy_per_seed``
+scores each seed separately and summarizes every metric with a
+Student's t confidence interval, so the headline comes with its
+spread. The bundled per-seed snapshot
+(``kya/agentrisk_per_seed_results.csv``, ``results/main.csv`` from
+the AgentRisk repo, copied 2026-11-09) carries the 5 seeds for all
+11 policies. One honest note: at threshold 0.5 the Legacy and
+AgentGate headline metrics are identical on every seed, so their
+95 percent intervals have zero width. The decline rates do vary by
+seed (88 of 99 cells), but none of that variation crosses the
+threshold, so the headline is seed-stable rather than seed-sensitive.
 """
 
 import csv
@@ -309,3 +323,231 @@ def score_agentrisk_policy(rows, policy, *, threshold=0.5, seed=None, score_colu
     )
     result = score_model(records, threshold=threshold)
     return records, counts, result
+
+
+def bundled_per_seed_results_path():
+    """Path to the bundled per-seed AgentRisk results snapshot.
+
+    This is ``results/main.csv`` from the AgentRisk repo, copied
+    2026-11-09: 495 rows, 5 seeds (0-4), 11 policies, 9 classes,
+    with a per-seed ``decline`` fraction per cell.
+    """
+    return Path(__file__).with_name("agentrisk_per_seed_results.csv")
+
+
+# Two-sided Student's t critical values, df 1-30, for the confidence
+# levels summarize_values supports. Standard table values; for
+# df above 30 the normal approximation is used instead.
+_T_CRITICAL = {
+    0.90: [
+        6.314, 2.920, 2.353, 2.132, 2.015, 1.943, 1.895, 1.860,
+        1.833, 1.812, 1.796, 1.782, 1.771, 1.761, 1.753, 1.746, 1.740,
+        1.734, 1.729, 1.725, 1.721, 1.717, 1.714, 1.711, 1.708, 1.706,
+        1.703, 1.701, 1.699, 1.697,
+    ],
+    0.95: [
+        12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262,
+        2.228, 2.201, 2.179, 2.160, 2.145, 2.131, 2.120, 2.110, 2.101,
+        2.093, 2.086, 2.080, 2.074, 2.069, 2.064, 2.060, 2.056, 2.052,
+        2.048, 2.045, 2.042,
+    ],
+    0.99: [
+        63.657, 9.925, 5.841, 4.604, 4.032, 3.707, 3.499, 3.355, 3.250,
+        3.169, 3.106, 3.055, 3.012, 2.977, 2.947, 2.921, 2.898, 2.878,
+        2.861, 2.845, 2.831, 2.819, 2.807, 2.797, 2.787, 2.779, 2.771,
+        2.763, 2.756, 2.750,
+    ],
+}
+
+# Normal-approximation critical values for df above 30.
+_Z_CRITICAL = {0.90: 1.645, 0.95: 1.960, 0.99: 2.576}
+
+# Metrics summarized per seed. Every one is bounded to [0, 1], so
+# confidence intervals are clipped to that range.
+_SEED_METRICS = ("precision", "recall", "f1", "accuracy", "auc")
+
+
+def _t_critical(confidence, df):
+    """Two-sided t critical value for ``confidence`` at ``df`` degrees."""
+    if df <= 30:
+        return _T_CRITICAL[confidence][df - 1]
+    return _Z_CRITICAL[confidence]
+
+
+def summarize_values(values, *, confidence=0.95):
+    """Summarize a list of numbers with a t confidence interval.
+
+    Returns a JSON-serializable dict with ``n``, ``mean``, ``std``
+    (sample standard deviation, ddof=1), ``standard_error``,
+    ``ci_low``, ``ci_high``, and ``ci_half_width`` at the given
+    confidence. With a single value there is no spread to measure,
+    so ``std``, ``standard_error``, and the interval are ``None``.
+    Raises ``ValueError`` on an empty list, a non-finite or
+    non-numeric value, or an unsupported confidence level (0.90,
+    0.95, or 0.99).
+    """
+    if confidence not in _T_CRITICAL:
+        raise ValueError(
+            "confidence must be 0.90, 0.95, or 0.99, got %r" % (confidence,)
+        )
+    if not isinstance(values, (list, tuple)) or not values:
+        raise ValueError("values must be a non-empty list of numbers")
+    numbers = []
+    for value in values:
+        if (
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or not math.isfinite(value)
+        ):
+            raise ValueError("values must be finite numbers, got %r" % (value,))
+        numbers.append(float(value))
+    n = len(numbers)
+    mean = sum(numbers) / n
+    if n == 1:
+        return {
+            "confidence": confidence,
+            "n": n,
+            "mean": mean,
+            "std": None,
+            "standard_error": None,
+            "ci_low": None,
+            "ci_high": None,
+            "ci_half_width": None,
+        }
+    variance = sum((value - mean) ** 2 for value in numbers) / (n - 1)
+    std = math.sqrt(variance)
+    standard_error = std / math.sqrt(n)
+    half_width = _t_critical(confidence, n - 1) * standard_error
+    return {
+        "confidence": confidence,
+        "n": n,
+        "mean": mean,
+        "std": std,
+        "standard_error": standard_error,
+        "ci_low": mean - half_width,
+        "ci_high": mean + half_width,
+        "ci_half_width": half_width,
+    }
+
+
+def _seed_sort_key(seed):
+    """Sort seeds numerically when they parse as ints, else as text."""
+    try:
+        return (0, int(seed), "")
+    except (TypeError, ValueError):
+        return (1, 0, str(seed))
+
+
+def _normalize_seed(seed):
+    """Return a seed as an int when it parses as one, else its string."""
+    try:
+        return int(seed)
+    except (TypeError, ValueError):
+        return str(seed)
+
+
+def score_agentrisk_policy_per_seed(
+    rows, policy, *, threshold=0.5, confidence=0.95, score_column=None
+):
+    """Score one policy separately on each seed, with confidence intervals.
+
+    Args:
+        rows: AgentRisk rows as loaded by ``load_agentrisk_csv``.
+            Rows must carry a ``seed`` column; the published means
+            file does not, and raises ``ValueError`` here. Use the
+            bundled per-seed snapshot for real per-seed scoring.
+        policy: the policy to score, e.g. ``"Legacy"`` or
+            ``"AgentGate"``. Matching is exact after stripping
+            whitespace.
+        threshold: passed through to ``score_model``.
+        confidence: 0.90, 0.95, or 0.99, for the t intervals.
+        score_column: passed through to ``records_from_agentrisk``.
+
+    Returns ``(per_seed, summary)``. ``per_seed`` is a list of one
+    dict per seed, sorted ascending, with the seed, the confusion
+    counts, and the five metrics (``None`` where undefined for that
+    seed). ``summary`` reports the policy, threshold, confidence,
+    ``n_seeds``, the seed list, and a ``metrics`` dict: for each of
+    precision, recall, F1, accuracy, and AUC, the mean across seeds
+    with a t confidence interval. A metric's ``n`` counts only the
+    seeds where it was defined; a metric undefined on every seed
+    has a ``None`` summary. Intervals are clipped to [0, 1], the
+    metric range. Raises ``ValueError`` when no rows match the
+    policy or when the rows carry no seed.
+    """
+    if confidence not in _T_CRITICAL:
+        raise ValueError(
+            "confidence must be 0.90, 0.95, or 0.99, got %r" % (confidence,)
+        )
+    if not isinstance(rows, (list, tuple)):
+        raise ValueError("rows must be a list of row dicts")
+    if not isinstance(policy, str) or not policy.strip():
+        raise ValueError("policy must be a non-empty string")
+    policy = policy.strip()
+
+    policies_seen = set()
+    seeds_seen = set()
+    for raw_row in rows:
+        row = _clean_row(raw_row)
+        row_policy = row.get("policy")
+        if row_policy is not None and row_policy != "":
+            policies_seen.add(row_policy)
+        if row_policy != policy:
+            continue
+        seed = row.get("seed")
+        if seed is not None and seed != "":
+            seeds_seen.add(str(seed))
+    if policy not in policies_seen:
+        raise ValueError(
+            "no agentrisk rows for policy %r (policies seen: %s)"
+            % (policy, sorted(policies_seen) or "none")
+        )
+    if not seeds_seen:
+        raise ValueError(
+            "agentrisk rows carry no seed, cannot score per seed"
+        )
+
+    per_seed = []
+    for seed_text in sorted(seeds_seen, key=_seed_sort_key):
+        _records, _counts, result = score_agentrisk_policy(
+            rows, policy, threshold=threshold, seed=seed_text,
+            score_column=score_column,
+        )
+        per_seed.append(
+            {
+                "seed": _normalize_seed(seed_text),
+                "n_records": result["n_scored"],
+                "tp": result["tp"],
+                "fp": result["fp"],
+                "tn": result["tn"],
+                "fn": result["fn"],
+                "precision": result["precision"],
+                "recall": result["recall"],
+                "f1": result["f1"],
+                "accuracy": result["accuracy"],
+                "auc": result["auc"],
+            }
+        )
+
+    metrics = {}
+    for metric in _SEED_METRICS:
+        defined = [
+            entry[metric] for entry in per_seed if entry[metric] is not None
+        ]
+        if not defined:
+            metrics[metric] = None
+            continue
+        summary = summarize_values(defined, confidence=confidence)
+        summary["ci_low"] = max(0.0, summary["ci_low"]) if summary["ci_low"] is not None else None
+        summary["ci_high"] = min(1.0, summary["ci_high"]) if summary["ci_high"] is not None else None
+        metrics[metric] = summary
+
+    summary = {
+        "policy": policy,
+        "threshold": float(threshold),
+        "confidence": confidence,
+        "n_seeds": len(per_seed),
+        "seeds": [entry["seed"] for entry in per_seed],
+        "metrics": metrics,
+    }
+    return per_seed, summary
