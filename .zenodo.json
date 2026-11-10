@@ -1,0 +1,1 @@
+{"access_right":"open","creators":[{"name":"Pande, Rishabh","orcid":"0009-0004-1901-7109"}],"description":"Verifiable identity for AI agent transactions: Ed25519-signed, scoped, session-limited, revocable credentials that fail closed on anything unverifiable.","license":{"id":"MIT"},"title":"Know Your Agent","upload_type":"software"}
