@@ -473,7 +473,9 @@ def score_agentrisk_policy_per_seed(
     seeds where it was defined; a metric undefined on every seed
     has a ``None`` summary. Intervals are clipped to [0, 1], the
     metric range. Raises ``ValueError`` when no rows match the
-    policy or when the rows carry no seed.
+    policy, when the rows carry no seed, or when a policy/seed/class
+    cell is duplicated. Aggregate cells are not independent observations;
+    repeating one would silently reweight a seed's metrics.
     """
     if confidence not in _T_CRITICAL:
         raise ValueError(
@@ -487,6 +489,7 @@ def score_agentrisk_policy_per_seed(
 
     policies_seen = set()
     seeds_seen = set()
+    cells_seen = set()
     for raw_row in rows:
         row = _clean_row(raw_row)
         row_policy = row.get("policy")
@@ -496,7 +499,16 @@ def score_agentrisk_policy_per_seed(
             continue
         seed = row.get("seed")
         if seed is not None and seed != "":
-            seeds_seen.add(str(seed))
+            seed_text = str(seed)
+            cls, _ = _row_value(row, _CLASS_COLUMNS, "a session class (cls or class)")
+            cell = (seed_text, cls)
+            if cell in cells_seen:
+                raise ValueError(
+                    "duplicate agentrisk cell for policy %r, seed %r, class %r"
+                    % (policy, seed_text, cls)
+                )
+            cells_seen.add(cell)
+            seeds_seen.add(seed_text)
     if policy not in policies_seen:
         raise ValueError(
             "no agentrisk rows for policy %r (policies seen: %s)"
