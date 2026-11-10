@@ -226,3 +226,27 @@ def test_summarize_values_many_points_uses_normal_approximation():
     assert summary["ci_half_width"] == pytest.approx(
         1.96 * summary["standard_error"]
     )
+
+
+@pytest.mark.parametrize("score", [0.02, 0.90])
+def test_per_seed_rejects_duplicate_cells_instead_of_reweighting(score):
+    rows = _seed_rows(0) + _seed_rows(1)
+    duplicate = dict(rows[0], decline=score)
+    with pytest.raises(ValueError, match="duplicate.*seed.*class"):
+        score_agentrisk_policy_per_seed(rows + [duplicate], "Legacy")
+
+
+def test_per_seed_duplicate_check_respects_aliases_and_whitespace():
+    rows = _seed_rows(0)
+    duplicate = {"policy": " Legacy ", "cls": " H ",
+                 "decline": 0.02, "seed": " 0 "}
+    with pytest.raises(ValueError, match="duplicate.*seed.*class"):
+        score_agentrisk_policy_per_seed(rows + [duplicate], "Legacy")
+
+
+def test_per_seed_same_class_in_other_seed_or_policy_is_not_duplicate():
+    rows = _seed_rows(0) + _seed_rows(1)
+    other_policy = dict(rows[0], policy="Other")
+    expected = score_agentrisk_policy_per_seed(rows, "Legacy")
+    actual = score_agentrisk_policy_per_seed(rows + [other_policy], "Legacy")
+    assert actual == expected
