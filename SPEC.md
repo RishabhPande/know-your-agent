@@ -31,10 +31,18 @@ identity: scoped, session-limited, and revocable.
 
 ## Planned next (not yet shipped)
 - Backlog complete as of 2026-11-09 (see below). Candidate for the
-  next loop, uncommitted: a POST /benchmark/agentrisk endpoint in the
-  demo service.
+  next loop, uncommitted: a POST /checkout-chain endpoint in the
+  demo service, authorizing a purchase against the leaf of a
+  delegation chain over HTTP.
 
 ## Shipped since v0.1
+- AgentRisk benchmark endpoint (DONE 2026-11-11: POST
+  /benchmark/agentrisk in service/app.py, scoring one policy on
+  caller-supplied rows or on the bundled snapshot when rows are
+  omitted, with a per_seed mode returning per-seed results and
+  confidence-interval summaries from the bundled per-seed snapshot;
+  seed and per_seed cannot be combined; every library ValueError is
+  a 422, matching POST /benchmark; 16 new tests, 192 total green).
 - FastAPI demo service (DONE 2026-11-03: service/app.py, create_app
   with /health, /verify, /verify-chain, /checkout, /revoke, /audit;
   fail-closed HTTP answers matching the library reasons; revocation
@@ -98,6 +106,12 @@ identity: scoped, session-limited, and revocable.
    (mean decline rate per policy x class), not per-case JSON, so
    records are class-level cells and the metrics measure class
    separation, not per-transaction discrimination.
+8. AgentRisk benchmark endpoint (DONE 2026-11-11: POST
+   /benchmark/agentrisk in service/app.py; policy scored on
+   caller-supplied rows or the bundled snapshot, per_seed mode with
+   confidence intervals from the bundled per-seed snapshot, seed
+   filter for single scoring, all validation failures as 422;
+   16 new tests, 192 total green).
 
 ## Naming and license (suggested)
 - Repo: `know-your-agent` (public)

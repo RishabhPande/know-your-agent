@@ -336,6 +336,10 @@ decline rates do vary by seed (88 of 99 cells), but none of that
 variation crosses the threshold, so the honest reading is that the
 headline is seed-stable, not seed-sensitive. The demo's step 13
 prints the per-seed mean AUC with its interval for both policies.
+Both scorings are also served over HTTP at
+`POST /benchmark/agentrisk` (see the service section below): send
+`{"policy": "Legacy"}` for the bundled headline, or add
+`"per_seed": true` for the per-seed summary.
 
 ## FastAPI demo service
 
@@ -367,8 +371,14 @@ Endpoints: `GET /health`, `POST /verify`, `POST /verify-chain`,
 `POST /checkout`, `POST /revoke` (by credential id, or by full
 credential, which also lands in the audit log), `GET /audit`
 (entries plus their verification result, when a log is configured),
-and `POST /benchmark` (score a list of KYA-labeled records, with an
-optional `threshold`, default 0.5; a malformed record is a 422).
+`POST /benchmark` (score a list of KYA-labeled records, with an
+optional `threshold`, default 0.5; a malformed record is a 422), and
+`POST /benchmark/agentrisk` (score one AgentRisk policy by name, with
+optional caller-supplied `rows`; when `rows` is omitted the bundled
+snapshot is scored, and with `per_seed` set each seed is scored
+separately with confidence intervals from the bundled per-seed
+snapshot; a malformed row, an unknown policy, or a bad option is a
+422).
 A verify or checkout answer is `{"ok": true, "reason": "ok"}` or
 `{"accepted": true, "reason": "allowed"}` on success, and the
 fail-closed reason otherwise: `malformed`, `bad_signature`, `revoked`,
@@ -398,9 +408,12 @@ v0.1 is the core: credential model, issue and verify, purchase policy, demo,
 and tests. Delegation chains, revocation management, the audit trail, the
 FastAPI demo service, the benchmark hook, and the AgentRisk link-up have all
 shipped since (see above). Per-seed AgentRisk scoring with confidence
-intervals shipped 2026-11-09, so the backlog is now complete and the
-next loop has one uncommitted candidate left: a
-`POST /benchmark/agentrisk` endpoint in the demo service.
+intervals shipped 2026-11-09, and the `POST /benchmark/agentrisk`
+endpoint shipped 2026-11-11, so the backlog is now complete and the
+next loop has one uncommitted candidate left: a `POST /checkout-chain`
+endpoint, so a purchase can be authorized against the leaf of a
+delegation chain over HTTP the way `authorize_purchase_chain()` already
+allows in the library.
 
 ## License
 

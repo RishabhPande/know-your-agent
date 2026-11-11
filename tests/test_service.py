@@ -9,9 +9,14 @@ from kya import (
     AuditLog,
     RevocationList,
     authorize_purchase,
+    bundled_per_seed_results_path,
+    bundled_results_path,
     delegate_credential,
     generate_keypair,
     issue_credential,
+    load_agentrisk_csv,
+    score_agentrisk_policy,
+    score_agentrisk_policy_per_seed,
 )
 from service.app import create_app
 
@@ -333,3 +338,159 @@ def test_revoke_can_succeed_after_rejected_empty_id(setup):
     assert len(setup["revocations"]) == 1
     assert len(setup["audit"]) == 1
     assert setup["audit"].verify(setup["public_key"]) == (True, "ok")
+
+
+def agentrisk_client():
+    _private_key, public_key = generate_keypair()
+    return TestClient(create_app(public_key))
+
+
+def test_benchmark_agentrisk_bundled_legacy_reproduces_headline():
+    response = agentrisk_client().post(
+        "/benchmark/agentrisk", json={"policy": "Legacy"}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["counts"] == {
+        "policy": "Legacy",
+        "n_rows": 18,
+        "n_policy_rows": 9,
+        "n_records": 9,
+    }
+    result = body["result"]
+    assert (result["tp"], result["fp"], result["tn"], result["fn"]) == (6, 2, 1, 0)
+    assert result["precision"] == pytest.approx(0.75)
+    assert result["recall"] == pytest.approx(1.0)
+    assert result["auc"] == pytest.approx(16 / 18)
+
+
+def test_benchmark_agentrisk_bundled_agentgate_separates_cleanly():
+    response = agentrisk_client().post(
+        "/benchmark/agentrisk", json={"policy": "AgentGate"}
+    )
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["precision"] == pytest.approx(1.0)
+    assert result["auc"] == pytest.approx(1.0)
+
+
+def test_benchmark_agentrisk_explicit_rows_agree_with_library():
+    rows = load_agentrisk_csv(bundled_results_path())
+    _records, counts, result = score_agentrisk_policy(rows, "Legacy")
+    response = agentrisk_client().post(
+        "/benchmark/agentrisk", json={"policy": "Legacy", "rows": rows}
+    )
+    assert response.status_code == 200
+    assert response.json() == {"counts": counts, "result": result}
+
+
+def test_benchmark_agentrisk_threshold_passes_through():
+    response = agentrisk_client().post(
+        "/benchmark/agentrisk", json={"policy": "Legacy", "threshold": 0.9}
+    )
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert (result["tp"], result["fp"], result["tn"], result["fn"]) == (5, 2, 1, 1)
+
+
+def test_benchmark_agentrisk_seed_filter_on_explicit_rows():
+    rows = load_agentrisk_csv(bundled_per_seed_results_path())
+    _records, counts, result = score_agentrisk_policy(rows, "Legacy", seed=0)
+    response = agentrisk_client().post(
+        "/benchmark/agentrisk",
+        json={"policy": "Legacy", "rows": rows, "seed": 0},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"counts": counts, "result": result}
+    assert counts["n_records"] == 9
+
+
+def test_benchmark_agentrisk_per_seed_bundled_agrees_with_library():
+    rows = load_agentrisk_csv(bundled_per_seed_results_path())
+    per_seed, summary = score_agentrisk_policy_per_seed(rows, "Legacy")
+    response = agentrisk_client().post(
+        "/benchmark/agentrisk", json={"policy": "Legacy", "per_seed": True}
+    )
+    assert response.status_code == 200
+    assert response.json() == {"per_seed": per_seed, "summary": summary}
+    assert summary["n_seeds"] == 5
+    assert summary["metrics"]["auc"]["mean"] == pytest.approx(16 / 18)
+
+
+def test_benchmark_agentrisk_per_seed_explicit_rows_and_confidence():
+    rows = load_agentrisk_csv(bundled_per_seed_results_path())
+    response = agentrisk_client().post(
+        "/benchmark/agentrisk",
+        json={
+            "policy": "AgentGate",
+            "rows": rows,
+            "per_seed": True,
+            "confidence": 0.99,
+        },
+    )
+    assert response.status_code == 200
+    summary = response.json()["summary"]
+    assert summary["confidence"] == 0.99
+    assert summary["metrics"]["auc"]["mean"] == pytest.approx(1.0)
+
+
+def test_benchmark_agentrisk_unknown_policy_is_422():
+    response = agentrisk_client().post(
+        "/benchmark/agentrisk", json={"policy": "Nope"}
+    )
+    assert response.status_code == 422
+
+
+def test_benchmark_agentrisk_bad_row_is_422():
+    client = agentrisk_client()
+    unknown_class = client.post(
+        "/benchmark/agentrisk",
+        json={
+            "policy": "Legacy",
+            "rows": [{"policy": "Legacy", "class": "XX", "mean_decline_pct": 50.0}],
+        },
+    )
+    assert unknown_class.status_code == 422
+    bad_score = client.post(
+        "/benchmark/agentrisk",
+        json={
+            "policy": "Legacy",
+            "rows": [{"policy": "Legacy", "class": "AV", "mean_decline_pct": 150.0}],
+        },
+    )
+    assert bad_score.status_code == 422
+
+
+def test_benchmark_agentrisk_empty_rows_is_422_not_bundled_fallback():
+    response = agentrisk_client().post(
+        "/benchmark/agentrisk", json={"policy": "Legacy", "rows": []}
+    )
+    assert response.status_code == 422
+
+
+def test_benchmark_agentrisk_per_seed_on_means_rows_is_422():
+    rows = load_agentrisk_csv(bundled_results_path())
+    response = agentrisk_client().post(
+        "/benchmark/agentrisk",
+        json={"policy": "Legacy", "rows": rows, "per_seed": True},
+    )
+    assert response.status_code == 422
+
+
+def test_benchmark_agentrisk_seed_with_per_seed_is_422():
+    response = agentrisk_client().post(
+        "/benchmark/agentrisk",
+        json={"policy": "Legacy", "per_seed": True, "seed": 0},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("body", [
+    {"policy": "Legacy", "threshold": 1.5},
+    {"policy": "Legacy", "score_column": "bogus"},
+    {"policy": "Legacy", "per_seed": True, "confidence": 0.5},
+    {"policy": ""},
+])
+def test_benchmark_agentrisk_bad_options_are_422(body):
+    response = agentrisk_client().post("/benchmark/agentrisk", json=body)
+    assert response.status_code == 422

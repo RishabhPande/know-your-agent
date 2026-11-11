@@ -22,6 +22,13 @@ Endpoints:
   (``{"records": [...], "threshold": 0.5}``), returning the confusion
   matrix, precision, recall, F1, accuracy, and AUC. A malformed record
   is a 422, never a score.
+- ``POST /benchmark/agentrisk``: score one AgentRisk policy with the
+  benchmark hook, either on caller-supplied rows or, when ``rows`` is
+  omitted, on the bundled AgentRisk snapshot. With ``per_seed`` set,
+  each seed is scored separately and every metric comes back with a
+  confidence interval, computed from the bundled per-seed snapshot
+  when ``rows`` is omitted. A malformed row, an unknown policy, or
+  an unsupported option is a 422, never a score.
 
 Failure handling is fail-closed all the way down. A malformed credential
 is a ``{"ok": false, "reason": "malformed"}`` response, never a 500 and
@@ -47,6 +54,11 @@ from pydantic import BaseModel
 from kya import (
     RevocationList,
     authorize_purchase,
+    bundled_per_seed_results_path,
+    bundled_results_path,
+    load_agentrisk_csv,
+    score_agentrisk_policy,
+    score_agentrisk_policy_per_seed,
     score_model,
     verify_chain,
     verify_credential,
@@ -76,6 +88,16 @@ class RevokeRequest(BaseModel):
 class BenchmarkRequest(BaseModel):
     records: list
     threshold: float = 0.5
+
+
+class BenchmarkAgentRiskRequest(BaseModel):
+    policy: str
+    rows: list | None = None
+    threshold: float = 0.5
+    seed: int | str | None = None
+    score_column: str | None = None
+    per_seed: bool = False
+    confidence: float = 0.95
 
 
 def _payload_of(credential):
@@ -256,6 +278,47 @@ def create_app(public_key, *, revocations=None, audit=None, audit_public_key=Non
     def benchmark(request: BenchmarkRequest):
         try:
             return score_model(request.records, threshold=request.threshold)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/benchmark/agentrisk")
+    def benchmark_agentrisk(request: BenchmarkAgentRiskRequest):
+        # Rows are optional on purpose: the package ships snapshots of
+        # the AgentRisk results, so a caller can score a policy by name
+        # alone. An explicit empty list is not the same as omitting
+        # rows; it scores nothing and the library rejects it as a 422.
+        try:
+            if request.per_seed:
+                if request.seed is not None:
+                    raise ValueError(
+                        "seed cannot be combined with per_seed scoring"
+                    )
+                rows = (
+                    request.rows
+                    if request.rows is not None
+                    else load_agentrisk_csv(bundled_per_seed_results_path())
+                )
+                per_seed, summary = score_agentrisk_policy_per_seed(
+                    rows,
+                    request.policy,
+                    threshold=request.threshold,
+                    confidence=request.confidence,
+                    score_column=request.score_column,
+                )
+                return {"per_seed": per_seed, "summary": summary}
+            rows = (
+                request.rows
+                if request.rows is not None
+                else load_agentrisk_csv(bundled_results_path())
+            )
+            _records, counts, result = score_agentrisk_policy(
+                rows,
+                request.policy,
+                threshold=request.threshold,
+                seed=request.seed,
+                score_column=request.score_column,
+            )
+            return {"counts": counts, "result": result}
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
