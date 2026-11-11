@@ -214,9 +214,12 @@ def create_app(public_key, *, revocations=None, audit=None, audit_public_key=Non
                     status_code=422, detail="credential has no credential_id"
                 )
             credential_id = payload["credential_id"]
-            newly_revoked = app.state.revocations.revoke_credential(
-                request.credential, reason=request.reason
-            )
+            try:
+                newly_revoked = app.state.revocations.revoke_credential(
+                    request.credential, reason=request.reason
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
             audit = getattr(app.state, "audit", None)
             if audit is not None and _auditable_payload(request.credential):
                 try:
@@ -227,9 +230,12 @@ def create_app(public_key, *, revocations=None, audit=None, audit_public_key=Non
                     pass
             return {"revoked": newly_revoked, "credential_id": credential_id}
         if request.credential_id is not None:
-            newly_revoked = app.state.revocations.revoke(
-                request.credential_id, reason=request.reason
-            )
+            try:
+                newly_revoked = app.state.revocations.revoke(
+                    request.credential_id, reason=request.reason
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
             return {"revoked": newly_revoked, "credential_id": request.credential_id}
         raise HTTPException(
             status_code=422,
