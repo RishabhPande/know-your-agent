@@ -172,6 +172,8 @@ flowchart TB
 
 ## Revocation management
 
+Saved revocation JSON rejects duplicate keys, including inside entries, and requires an integer format version. Ambiguous input is an error rather than silently replacing recorded revocations.
+
 `RevocationList` owns the revoked ids, so no caller has to maintain a set
 by hand. Revoke by id or straight from a credential, pass the list itself
 to any verify or authorize call, and save it to disk as JSON when it
