@@ -376,7 +376,9 @@ fail-closed reason otherwise: `malformed`, `bad_signature`, `revoked`,
 A malformed credential is a rejection with a reason, never a 500, and
 never an acceptance. To embed the service in your own app instead of
 the demo, call `create_app(public_key, revocations=..., audit=...)`
-from `service.app` and serve the result with uvicorn. Revocation state
+from `service.app` and serve the result with uvicorn. Invalid revocation
+identifiers, including empty IDs in either request form, return 422 without
+changing revocation or audit state. Revocation state
 belongs to each app instance: two apps built without a shared list do
 not share revocations, which the tests pin down.
 
