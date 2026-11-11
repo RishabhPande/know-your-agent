@@ -301,3 +301,35 @@ def test_library_and_service_agree():
             },
         ).json()
         assert got == {"accepted": expected_ok, "reason": expected_reason}
+
+
+@pytest.mark.parametrize("body", [
+    {"credential_id": ""},
+    {"credential": {"payload": {"credential_id": ""}}},
+])
+def test_revoke_rejects_empty_id_without_state_or_audit_changes(setup, body):
+    credential = make_credential(setup["private_key"])
+    setup["audit"].record_issued(credential)
+    before_revocations = setup["revocations"].to_dict()
+    before_audit = setup["audit"].to_dict()
+
+    response = setup["client"].post("/revoke", json=body)
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "credential_id must be a non-empty string"}
+    assert setup["revocations"].to_dict() == before_revocations
+    assert setup["audit"].to_dict() == before_audit
+    valid = setup["client"].post("/verify", json={"credential": credential})
+    assert valid.json() == {"ok": True, "reason": "ok"}
+
+
+def test_revoke_can_succeed_after_rejected_empty_id(setup):
+    credential = make_credential(setup["private_key"])
+    rejected = setup["client"].post("/revoke", json={"credential_id": ""})
+    assert rejected.status_code == 422
+    accepted = setup["client"].post("/revoke", json={"credential": credential})
+    assert accepted.status_code == 200
+    assert accepted.json()["revoked"] is True
+    assert len(setup["revocations"]) == 1
+    assert len(setup["audit"]) == 1
+    assert setup["audit"].verify(setup["public_key"]) == (True, "ok")
