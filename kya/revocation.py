@@ -37,6 +37,16 @@ from .credentials import _to_utc_iso
 REVOCATION_LIST_VERSION = 1
 
 
+def _unique_json_object(pairs):
+    """Reject duplicate keys before they can replace revocation data."""
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate revocation JSON key: %r" % key)
+        result[key] = value
+    return result
+
+
 def _validate_credential_id(credential_id):
     if not isinstance(credential_id, str) or not credential_id:
         raise ValueError("credential_id must be a non-empty string")
@@ -187,7 +197,7 @@ class RevocationList:
         """Load a list from ``to_dict`` output. Raises ValueError if malformed."""
         if not isinstance(data, dict):
             raise ValueError("revocation list data must be a dict")
-        if data.get("version") != REVOCATION_LIST_VERSION:
+        if type(data.get("version")) is not int or data["version"] != REVOCATION_LIST_VERSION:
             raise ValueError(
                 "unsupported revocation list version: %r" % (data.get("version"),)
             )
@@ -206,7 +216,7 @@ class RevocationList:
         if not isinstance(text, str):
             raise ValueError("revocation list JSON must be a string")
         try:
-            data = json.loads(text)
+            data = json.loads(text, object_pairs_hook=_unique_json_object)
         except json.JSONDecodeError as exc:
             raise ValueError("invalid revocation list JSON") from exc
         return cls.from_dict(data)
