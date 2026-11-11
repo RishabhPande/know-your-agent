@@ -259,3 +259,30 @@ def test_revoked_at_normalizes_datetime_to_utc_z():
         revoked_at=datetime(2026, 10, 30, 14, 30, 0, tzinfo=timezone.utc),
     )
     assert store.get("cred-a")["revoked_at"] == "2026-10-30T14:30:00Z"
+
+
+@pytest.mark.parametrize("text", [
+    '{"version":1,"entries":[{"credential_id":"stolen"}],"entries":[]}',
+    '{"version":99,"version":1,"entries":[]}',
+    '{"version":1,"entries":[{"credential_id":"stolen","credential_id":"other"}]}',
+    '{"version":1,"entries":[{"credential_id":"stolen","reason":"first","reason":"second"}]}',
+])
+def test_json_duplicate_keys_cannot_replace_revocations(text):
+    with pytest.raises(ValueError, match="duplicate revocation JSON key"):
+        RevocationList.from_json(text)
+
+
+@pytest.mark.parametrize("version", [True, False, 1.0, "1", None])
+def test_revocation_format_version_requires_integer(version):
+    with pytest.raises(ValueError, match="unsupported revocation list version"):
+        RevocationList.from_dict({"version": version, "entries": []})
+
+
+def test_duplicate_key_rejection_keeps_valid_roundtrip_and_verification():
+    private_key, public_key = generate_keypair()
+    credential = make_credential(private_key)
+    store = RevocationList()
+    store.revoke_credential(credential, reason="stolen", revoked_at="2026-11-10T12:00:00Z")
+    restored = RevocationList.from_json(store.to_json())
+    assert restored.entries() == store.entries()
+    assert verify_credential(public_key, credential, revoked_ids=restored) == (False, "revoked")
