@@ -14,6 +14,7 @@ Endpoints:
 - ``POST /verify-chain``: verify a delegation chain, same shape.
 - ``POST /checkout``: verify a credential and check one purchase against
   its scope, returns ``accepted`` and ``reason``.
+- ``POST /checkout-chain``: verify every delegation link, then check the leaf purchase scope.
 - ``POST /revoke``: revoke a credential id (or a full credential, which
   also records the revocation in the audit log when one is configured).
 - ``GET /audit``: the audit log entries plus their verification result,
@@ -54,6 +55,7 @@ from pydantic import BaseModel
 from kya import (
     RevocationList,
     authorize_purchase,
+    authorize_purchase_chain,
     bundled_per_seed_results_path,
     bundled_results_path,
     load_agentrisk_csv,
@@ -75,6 +77,12 @@ class VerifyChainRequest(BaseModel):
 
 class CheckoutRequest(BaseModel):
     credential: dict
+    amount_usd: float
+    category: str
+
+
+class CheckoutChainRequest(BaseModel):
+    chain: list
     amount_usd: float
     category: str
 
@@ -220,6 +228,31 @@ def create_app(public_key, *, revocations=None, audit=None, audit_public_key=Non
                     principal=payload["principal"],
                     outcome=reason,
                     detail={"endpoint": "checkout"},
+                )
+            except ValueError:
+                pass
+        return {"accepted": accepted, "reason": reason}
+
+    @app.post("/checkout-chain")
+    def checkout_chain(request: CheckoutChainRequest):
+        accepted, reason = authorize_purchase_chain(
+            app.state.public_key,
+            request.chain,
+            request.amount_usd,
+            request.category,
+            revoked_ids=app.state.revocations,
+        )
+        # Record only a usable leaf identity; malformed chains still reject
+        # without inventing an audit identity or changing their verdict.
+        audit = getattr(app.state, "audit", None)
+        leaf = request.chain[-1] if request.chain else None
+        payload = _auditable_payload(leaf)
+        if audit is not None and payload is not None:
+            try:
+                audit.append(
+                    "verified", payload["credential_id"],
+                    agent_id=payload["agent_id"], principal=payload["principal"],
+                    outcome=reason, detail={"endpoint": "checkout-chain"},
                 )
             except ValueError:
                 pass
