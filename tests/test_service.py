@@ -494,3 +494,74 @@ def test_benchmark_agentrisk_seed_with_per_seed_is_422():
 def test_benchmark_agentrisk_bad_options_are_422(body):
     response = agentrisk_client().post("/benchmark/agentrisk", json=body)
     assert response.status_code == 422
+
+
+def purchase_chain(setup):
+    now = datetime.now(timezone.utc)
+    root = make_credential(setup['private_key'])
+    leaf = delegate_credential(
+        setup['private_key'], root, agent_id='agent-sub-checkout',
+        scope={'max_amount_usd': 20.0, 'categories': ['electronics']},
+        not_before=now, not_after=now + timedelta(minutes=30))
+    return [root, leaf]
+
+
+def checkout_chain(setup, chain, amount=15.0, category='electronics'):
+    return setup['client'].post('/checkout-chain', json={
+        'chain': chain, 'amount_usd': amount, 'category': category})
+
+
+def test_checkout_chain_accepts_and_audits_leaf(setup):
+    chain = purchase_chain(setup)
+    result = checkout_chain(setup, chain)
+    assert result.status_code == 200
+    assert result.json() == {'accepted': True, 'reason': 'allowed'}
+    audit = setup['client'].get('/audit').json()
+    assert audit['ok']
+    event = audit['entries'][-1]
+    assert event['credential_id'] == chain[-1]['payload']['credential_id']
+    assert event['outcome'] == 'allowed'
+    assert event['detail'] == {'endpoint': 'checkout-chain'}
+
+
+@pytest.mark.parametrize('amount,category,reason', [
+    (30.0, 'electronics', 'amount_exceeds_scope'),
+    (15.0, 'groceries', 'category_not_allowed'),
+])
+def test_checkout_chain_enforces_leaf_not_parent_scope(setup, amount, category, reason):
+    result = checkout_chain(setup, purchase_chain(setup), amount, category)
+    assert result.json() == {'accepted': False, 'reason': reason}
+    assert setup['audit'].entries()[-1]['outcome'] == reason
+
+
+@pytest.mark.parametrize('position', [0, 1])
+def test_checkout_chain_rejects_revoked_ancestor_or_leaf(setup, position):
+    chain = purchase_chain(setup)
+    setup['revocations'].revoke_credential(chain[position])
+    assert checkout_chain(setup, chain).json() == {'accepted': False, 'reason': 'revoked'}
+
+
+@pytest.mark.parametrize('chain', [[], [None], ['invalid'], [{}]])
+def test_checkout_chain_malformed_input_is_rejected_without_audit_identity(setup, chain):
+    assert checkout_chain(setup, chain).json()['accepted'] is False
+    assert setup['audit'].entries() == []
+
+
+def test_checkout_chain_rejects_tamper_and_missing_parent(setup):
+    chain = purchase_chain(setup)
+    assert checkout_chain(setup, chain[1:]).json() == {'accepted': False, 'reason': 'bad_chain'}
+    chain[-1]['payload']['scope']['max_amount_usd'] = 500.0
+    assert checkout_chain(setup, chain).json() == {'accepted': False, 'reason': 'bad_signature'}
+
+
+@pytest.mark.parametrize('body', [None, {}, {'chain': {}}, {'chain': [], 'amount_usd': 'bad', 'category': 'x'}])
+def test_checkout_chain_request_shape_is_422(setup, body):
+    assert setup['client'].post('/checkout-chain', json=body).status_code == 422
+
+
+def test_checkout_chain_works_without_optional_audit(setup):
+    app = create_app(setup['public_key'])
+    with TestClient(app) as client:
+        assert client.post('/checkout-chain', json={
+            'chain': purchase_chain(setup), 'amount_usd': 15, 'category': 'electronics'
+        }).json() == {'accepted': True, 'reason': 'allowed'}
