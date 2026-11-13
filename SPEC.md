@@ -31,11 +31,26 @@ identity: scoped, session-limited, and revocable.
 
 ## Planned next (not yet shipped)
 - Backlog complete as of 2026-11-09 (see below). Candidate for the
-  next loop, uncommitted: a POST /checkout-chain endpoint in the
-  demo service, authorizing a purchase against the leaf of a
-  delegation chain over HTTP.
+  next loop, uncommitted: a gate evaluation helper that runs the
+  gate over a built corpus and reports per-class verdicts and catch
+  rates, so corpus results stop depending on ad hoc scoring code in
+  each consumer.
 
 ## Shipped since v0.1
+- Seeded evaluation corpus (DONE 2026-11-13: kya/corpus.py,
+  build_corpus and corpus_to_json; deterministic, byte-identical
+  rebuild from a seed; 5,100 transactions in 20 classes at the
+  default seed 20261112: 2,500 legitimate, 650 policy violations
+  with label None, 1,950 attacks across 15 classes including
+  in-window replay, which the gate accepts and which is reported
+  as a known v0.1 limitation (no nonce); counts validated as
+  non-negative ints, unknown classes raise ValueError; demo step
+  14; 13 corpus tests, 220 total green).
+- Delegated checkout endpoint (DONE 2026-11-13 via PR #10:
+  POST /checkout-chain in service/app.py, authorizing a purchase
+  against the leaf of a delegation chain over HTTP with the same
+  fail-closed reasons as the library, leaf audit recording when a
+  log is configured; 15 new tests, 217 total green on sync).
 - AgentRisk benchmark endpoint (DONE 2026-11-11: POST
   /benchmark/agentrisk in service/app.py, scoring one policy on
   caller-supplied rows or on the bundled snapshot when rows are
@@ -112,6 +127,14 @@ identity: scoped, session-limited, and revocable.
    confidence intervals from the bundled per-seed snapshot, seed
    filter for single scoring, all validation failures as 422;
    16 new tests, 192 total green).
+9. Delegated checkout endpoint (DONE 2026-11-13 via PR #10: POST
+   /checkout-chain in service/app.py; whole-chain verification,
+   leaf scope enforcement, revoked-link rejection, leaf audit
+   recording; 15 new tests, 217 total green on sync).
+10. Seeded evaluation corpus (DONE 2026-11-13: kya/corpus.py,
+    build_corpus / corpus_to_json, 20 classes, deterministic
+    rebuild, in-window replay measured as a known limitation;
+    demo step 14; 13 corpus tests, 220 total green).
 
 ## Naming and license (suggested)
 - Repo: `know-your-agent` (public)
