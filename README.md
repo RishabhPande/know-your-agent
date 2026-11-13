@@ -368,7 +368,7 @@ curl -X POST http://127.0.0.1:8000/checkout \
 ```
 
 Endpoints: `GET /health`, `POST /verify`, `POST /verify-chain`,
-`POST /checkout`, `POST /revoke` (by credential id, or by full
+`POST /checkout`, `POST /checkout-chain`, `POST /revoke` (by credential id, or by full
 credential, which also lands in the audit log), `GET /audit`
 (entries plus their verification result, when a log is configured),
 `POST /benchmark` (score a list of KYA-labeled records, with an
@@ -392,6 +392,32 @@ changing revocation or audit state. Revocation state
 belongs to each app instance: two apps built without a shared list do
 not share revocations, which the tests pin down.
 
+### Authorize a delegated purchase
+
+`POST /checkout-chain` takes the whole root-to-leaf credential chain, not just
+the leaf credential:
+
+```json
+{"chain": ["ROOT_CREDENTIAL_OBJECT", "LEAF_CREDENTIAL_OBJECT"],
+ "amount_usd": 15.0, "category": "electronics"}
+```
+
+Replace both placeholder strings with credential JSON objects issued by your
+trusted issuer. The endpoint uses `authorize_purchase_chain()` to verify every
+signature, link, time window and revocation, then checks the purchase against the
+leaf's narrowed scope. A $30 purchase fails for a $20 leaf even when its parent
+allows $50. Revoking any ancestor blocks the purchase. A lone delegated leaf
+cannot substitute for its missing parent. The response has the same
+`accepted`/`reason` shape as `/checkout`; invalid request shapes return 422.
+
+When audit is configured, a usable leaf identity is recorded with the actual
+checkout verdict and `detail.endpoint` set to `checkout-chain`. This records the
+service's decision, not a payment or proof that a merchant fulfilled an order.
+No payment is executed and no real money is involved. Verification and revocation
+state are still in memory in the demo. The demo's `/revoke` and `/audit` routes do
+not add deployment authentication or access control; do not expose this demo as a
+production authorization service.
+
 ## Security notes
 
 - Fail closed, everywhere: unverifiable input is rejected, never accepted
@@ -409,11 +435,10 @@ and tests. Delegation chains, revocation management, the audit trail, the
 FastAPI demo service, the benchmark hook, and the AgentRisk link-up have all
 shipped since (see above). Per-seed AgentRisk scoring with confidence
 intervals shipped 2026-11-09, and the `POST /benchmark/agentrisk`
-endpoint shipped 2026-11-11, so the backlog is now complete and the
-next loop has one uncommitted candidate left: a `POST /checkout-chain`
-endpoint, so a purchase can be authorized against the leaf of a
-delegation chain over HTTP the way `authorize_purchase_chain()` already
-allows in the library.
+endpoint shipped 2026-11-11. `POST /checkout-chain` now exposes the library's
+whole-chain purchase authorization through the demo HTTP contract. Production
+authentication, persistent revocation state and merchant integration remain outside
+this demo's guarantees.
 
 ## License
 
