@@ -1,7 +1,5 @@
 """Tests for the seeded evaluation corpus (kya/corpus.py)."""
 
-from datetime import datetime, timezone
-
 import pytest
 
 from kya import (
@@ -9,11 +7,9 @@ from kya import (
     ATTACK_CLASSES,
     LEGIT_CLASSES,
     POLICY_CLASSES,
-    authorize_purchase,
-    authorize_purchase_chain,
     build_corpus,
     corpus_to_json,
-    load_public_key_pem,
+    evaluate_corpus,
 )
 from kya.corpus import DEFAULT_COUNTS
 
@@ -25,32 +21,17 @@ def tiny_corpus(seed=99):
 
 
 def gate_verdicts(corpus):
-    """Run the gate over a corpus, returning {tx_id: (ok, reason)}."""
-    public_key = load_public_key_pem(corpus["issuer_public_key_pem"])
-    revoked = set(corpus["revoked_ids"])
-    verdicts = {}
-    for tx in corpus["transactions"]:
-        now = datetime.fromisoformat(tx["timestamp"].replace("Z", "+00:00"))
-        if tx["kind"] == "single":
-            verdict = authorize_purchase(
-                public_key,
-                tx["credential"],
-                tx["amount_usd"],
-                tx["category"],
-                now=now,
-                revoked_ids=revoked,
-            )
-        else:
-            verdict = authorize_purchase_chain(
-                public_key,
-                tx["chain"],
-                tx["amount_usd"],
-                tx["category"],
-                now=now,
-                revoked_ids=revoked,
-            )
-        verdicts[tx["tx_id"]] = verdict
-    return verdicts
+    """Run the gate over a corpus, returning {tx_id: (ok, reason)}.
+
+    Delegates to kya.evaluate.evaluate_corpus, the shared gate
+    evaluation helper, so these tests exercise the same loop every
+    other corpus consumer uses.
+    """
+    result = evaluate_corpus(corpus)
+    return {
+        verdict["tx_id"]: (verdict["ok"], verdict["reason"])
+        for verdict in result["verdicts"]
+    }
 
 
 def test_corpus_is_deterministic():

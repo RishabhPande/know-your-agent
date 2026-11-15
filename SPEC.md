@@ -31,12 +31,25 @@ identity: scoped, session-limited, and revocable.
 
 ## Planned next (not yet shipped)
 - Backlog complete as of 2026-11-09 (see below). Candidate for the
-  next loop, uncommitted: a gate evaluation helper that runs the
-  gate over a built corpus and reports per-class verdicts and catch
-  rates, so corpus results stop depending on ad hoc scoring code in
-  each consumer.
+  next loop, uncommitted: a POST /evaluate endpoint in the demo
+  service, so a gate evaluation over a caller-supplied corpus is
+  available over HTTP the same way benchmark scoring already is.
 
 ## Shipped since v0.1
+- Gate evaluation helper (DONE 2026-11-15: kya/evaluate.py,
+  evaluate_corpus with evaluation_to_json and evaluation_from_json;
+  runs the real gate over a built corpus at each transaction's own
+  timestamp, with the corpus issuer key and revocation state unless
+  overridden; per-class and per-family accepted, rejected, and
+  correct counts with correct rates, attack catch rates, per-class
+  reason tallies, full verdict list, and missed_attack_ids and
+  false_reject_ids naming the misses; strict ValueError validation
+  on malformed corpora, duplicate transaction ids, unknown kinds,
+  and unparseable timestamps; unknown classes group by label; demo
+  step 15; the corpus tests now delegate to it instead of their own
+  gate loop; 16 new tests, 236 total green. Default corpus headline:
+  legitimate 2500/2500 accepted, policy 650/650 rejected, attacks
+  1850/1950 caught, every miss an in-window replay).
 - Seeded evaluation corpus (DONE 2026-11-13: kya/corpus.py,
   build_corpus and corpus_to_json; deterministic, byte-identical
   rebuild from a seed; 5,100 transactions in 20 classes at the
@@ -135,6 +148,11 @@ identity: scoped, session-limited, and revocable.
     build_corpus / corpus_to_json, 20 classes, deterministic
     rebuild, in-window replay measured as a known limitation;
     demo step 14; 13 corpus tests, 220 total green).
+11. Gate evaluation helper (DONE 2026-11-15: kya/evaluate.py,
+    evaluate_corpus / evaluation_to_json / evaluation_from_json,
+    per-class verdicts and catch rates over a built corpus, misses
+    named by transaction id, corpus tests migrated onto it;
+    demo step 15; 16 new tests, 236 total green).
 
 ## Naming and license (suggested)
 - Repo: `know-your-agent` (public)

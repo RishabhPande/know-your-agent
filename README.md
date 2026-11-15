@@ -47,6 +47,7 @@ Scope: up to $50 in electronics. Session: 1 hour.
 13. AgentRisk Legacy per seed (5 seeds): mean AUC 0.89, 95% CI [0.89, 0.89]
 13. AgentRisk AgentGate per seed (5 seeds): mean AUC 1.00, 95% CI [1.00, 1.00]
 14. Seeded corpus (seed 20261112, 5100 transactions, 20 classes): 2500 legitimate, 650 policy, 1950 attacks; deterministic rebuild matches: True
+15. Gate evaluation (default corpus): legitimate 2500/2500 accepted, policy 650/650 rejected, attacks 1850/1950 caught (100 missed: attack_replay_in_window)
 ```
 
 Run the tests with:
@@ -383,6 +384,44 @@ form at `corpus["issuer_public_key_pem"]` and the revocation state at
 class names raise `ValueError`. The demo's step 14 builds the default
 corpus twice and confirms the rebuild matches.
 
+## Gate evaluation
+
+Building a corpus is only half the job; someone still has to run the
+gate over it and tally the verdicts. `evaluate_corpus` in
+`kya/evaluate.py` is that loop, written once, so corpus results no
+longer depend on ad hoc scoring code in each consumer (the corpus
+tests now call it too). It judges every transaction with the real
+gate, at the transaction's own timestamp, with the corpus issuer key
+and revocation state unless the caller overrides either one, and
+reports per-class and per-family accepted, rejected, and correct
+counts with correct rates, attack catch rates, reason tallies per
+class, and the full per-transaction verdict list. The misses are
+named, not just counted: `missed_attack_ids` lists the attacks the
+gate accepted and `false_reject_ids` lists the legitimate traffic it
+turned away.
+
+```python
+from kya import build_corpus, evaluate_corpus
+
+result = evaluate_corpus(build_corpus())
+result["by_family"]["attack"]["catch_rate"]   # 0.9487...
+result["missed_attack_ids"]                   # the 100 replay tx ids
+result["by_class"]["attack_forged_signature"]["reasons"]
+# {"bad_signature": 250}
+```
+
+On the default corpus the gate accepts all 2,500 legitimate
+transactions, rejects all 650 policy violations, and catches 1,850 of
+1,950 attacks. Every miss is an in-window replay, the known v0.1
+limitation above, now reported as a measured 100 out of 100 for that
+class instead of a caveat in prose. Passing an empty set as
+`revoked_ids` measures what revocation is worth on the same corpus:
+the revoked classes stop being caught. A malformed corpus raises
+`ValueError` instead of producing partial numbers, and an empty
+corpus reports its rates as `None`, never as a made-up zero. Results
+round-trip through `evaluation_to_json` and `evaluation_from_json`.
+The demo's step 15 prints the headline.
+
 ## FastAPI demo service
 
 `service/app.py` puts the same checks behind HTTP, so a merchant can
@@ -480,10 +519,13 @@ intervals shipped 2026-11-09, and the `POST /benchmark/agentrisk`
 endpoint shipped 2026-11-11. `POST /checkout-chain` now exposes the library's
 whole-chain purchase authorization through the demo HTTP contract. The seeded
 evaluation corpus shipped 2026-11-13, so the gate now has a deterministic
-credential-layer test set of its own. The next loop has one uncommitted
-candidate left: a gate evaluation helper that runs the gate over a built
-corpus and reports per-class verdicts and catch rates, so corpus results
-stop depending on ad hoc scoring code in each consumer. Production
+credential-layer test set of its own. The gate evaluation helper shipped
+2026-11-15: `evaluate_corpus` runs the gate over a built corpus and
+reports per-class verdicts and catch rates, and the corpus tests use it
+instead of their own loop. The next loop has one uncommitted candidate
+left: a `POST /evaluate` endpoint in the demo service, so a gate
+evaluation over a caller-supplied corpus is available over HTTP the
+same way benchmark scoring already is. Production
 authentication, persistent revocation state and merchant integration remain outside
 this demo's guarantees.
 

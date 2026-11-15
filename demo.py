@@ -270,6 +270,42 @@ def main():
         )
     )
 
+    # Gate evaluation: run the gate itself over the corpus built in
+    # step 14 and report per-family verdicts, instead of quoting
+    # numbers produced by a one-off scoring loop. The only missed
+    # attacks are the in-window replays from step 14's corpus: with
+    # no nonce in v0.1 the gate cannot tell a replay from the genuine
+    # presentation, and the evaluation names that class rather than
+    # averaging it away.
+    from kya import evaluate_corpus
+
+    evaluation = evaluate_corpus(corpus)
+    legit = evaluation["by_family"]["legitimate"]
+    policy = evaluation["by_family"]["policy"]
+    attack = evaluation["by_family"]["attack"]
+    missed_classes = sorted(
+        {
+            verdict["cls"]
+            for verdict in evaluation["verdicts"]
+            if verdict["tx_id"] in set(evaluation["missed_attack_ids"])
+        }
+    )
+    print(
+        "15. Gate evaluation (default corpus): legitimate %d/%d "
+        "accepted, policy %d/%d rejected, attacks %d/%d caught "
+        "(%d missed: %s)"
+        % (
+            legit["accepted"],
+            legit["n"],
+            policy["rejected"],
+            policy["n"],
+            attack["correct"],
+            attack["n"],
+            attack["missed"],
+            ", ".join(missed_classes),
+        )
+    )
+
 
 if __name__ == "__main__":
     main()

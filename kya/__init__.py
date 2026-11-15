@@ -1,4 +1,4 @@
-"""Know Your Agent: the public API surface (v0.1 + delegation + revocation + audit + benchmark + agentrisk)."""
+"""Know Your Agent: the public API surface (v0.1 + delegation + revocation + audit + benchmark + agentrisk + corpus + evaluation)."""
 
 from .agentrisk import (
     AGENTRISK_DATASET_URL,
@@ -55,6 +55,12 @@ from .credentials import (
     public_key_to_pem,
     verify_credential,
 )
+from .evaluate import (
+    EVALUATION_VERSION,
+    evaluate_corpus,
+    evaluation_from_json,
+    evaluation_to_json,
+)
 from .delegation import (
     REASON_BAD_CHAIN,
     REASON_PRINCIPAL_MISMATCH,
@@ -90,6 +96,7 @@ __all__ = [
     "CORPUS_VERSION",
     "DEFAULT_COUNTS",
     "DEFAULT_SEED",
+    "EVALUATION_VERSION",
     "LEGIT_CLASSES",
     "POLICY_CLASSES",
     "REASON_ALLOWED",
@@ -119,6 +126,9 @@ __all__ = [
     "check_purchase",
     "corpus_to_json",
     "delegate_credential",
+    "evaluate_corpus",
+    "evaluation_from_json",
+    "evaluation_to_json",
     "generate_keypair",
     "issue_credential",
     "label_for_reason",
