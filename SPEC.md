@@ -31,11 +31,26 @@ identity: scoped, session-limited, and revocable.
 
 ## Planned next (not yet shipped)
 - Backlog complete as of 2026-11-09 (see below). Candidate for the
-  next loop, uncommitted: a POST /evaluate endpoint in the demo
-  service, so a gate evaluation over a caller-supplied corpus is
-  available over HTTP the same way benchmark scoring already is.
+  next loop, uncommitted: replay protection, a presentation nonce
+  or idempotency store that would close the in-window replay
+  limitation the corpus and the evaluation measure at 100 missed
+  attacks on the default corpus.
 
 ## Shipped since v0.1
+- Gate evaluation endpoint (DONE 2026-11-17: POST /evaluate in
+  service/app.py; runs evaluate_corpus over a caller-supplied corpus
+  in {"corpus": {...}} form, or over a corpus the service builds
+  itself from {"seed": ..., "counts": {...}}, or over the default
+  corpus when neither is sent; corpus cannot be combined with seed
+  or counts; an optional revoked_ids list overrides the corpus
+  revocation state, so an empty list measures what revocation is
+  worth; every library ValueError is a 422, matching POST
+  /benchmark, and a wrong request shape is a 422 from validation;
+  the endpoint is an evaluation harness, not an authorization path:
+  it judges against the issuer key the corpus carries, not the
+  service trusted key, and touches neither the service revocation
+  list nor the audit log, which the tests pin down; 19 new tests,
+  255 total green).
 - Gate evaluation helper (DONE 2026-11-15: kya/evaluate.py,
   evaluate_corpus with evaluation_to_json and evaluation_from_json;
   runs the real gate over a built corpus at each transaction's own
@@ -153,6 +168,12 @@ identity: scoped, session-limited, and revocable.
     per-class verdicts and catch rates over a built corpus, misses
     named by transaction id, corpus tests migrated onto it;
     demo step 15; 16 new tests, 236 total green).
+12. Gate evaluation endpoint (DONE 2026-11-17: POST /evaluate in
+    service/app.py; caller-supplied corpus, or server-built from
+    seed and counts, or the default corpus; revoked_ids override;
+    all failures as 422; evaluation harness only, service
+    revocations and audit untouched; 19 new tests, 255 total
+    green).
 
 ## Naming and license (suggested)
 - Repo: `know-your-agent` (public)

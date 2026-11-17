@@ -6,12 +6,15 @@ import pytest
 from fastapi.testclient import TestClient
 
 from kya import (
+    ALL_CLASSES,
     AuditLog,
     RevocationList,
     authorize_purchase,
+    build_corpus,
     bundled_per_seed_results_path,
     bundled_results_path,
     delegate_credential,
+    evaluate_corpus,
     generate_keypair,
     issue_credential,
     load_agentrisk_csv,
@@ -565,3 +568,129 @@ def test_checkout_chain_works_without_optional_audit(setup):
         assert client.post('/checkout-chain', json={
             'chain': purchase_chain(setup), 'amount_usd': 15, 'category': 'electronics'
         }).json() == {'accepted': True, 'reason': 'allowed'}
+
+
+# -- POST /evaluate -------------------------------------------------------
+# The endpoint is an evaluation harness: it judges a corpus against
+# the issuer key the corpus carries, not the key the service app was
+# built with, so these tests use a plain app with an unrelated key.
+
+TINY_COUNTS = {cls: 4 for cls in ALL_CLASSES}
+
+
+def evaluate_client():
+    _private_key, public_key = generate_keypair()
+    return TestClient(create_app(public_key))
+
+
+def test_evaluate_explicit_corpus_agrees_with_library():
+    corpus = build_corpus(99, counts=TINY_COUNTS)
+    response = evaluate_client().post("/evaluate", json={"corpus": corpus})
+    assert response.status_code == 200
+    assert response.json() == evaluate_corpus(corpus)
+
+
+def test_evaluate_seed_and_counts_build_the_same_corpus():
+    response = evaluate_client().post(
+        "/evaluate", json={"seed": 99, "counts": TINY_COUNTS}
+    )
+    assert response.status_code == 200
+    assert response.json() == evaluate_corpus(
+        build_corpus(99, counts=TINY_COUNTS)
+    )
+    body = response.json()
+    assert body["n_transactions"] == 80
+    assert body["n_correct"] == 76
+
+
+def test_evaluate_counts_only_uses_the_default_seed():
+    response = evaluate_client().post(
+        "/evaluate", json={"counts": TINY_COUNTS}
+    )
+    assert response.status_code == 200
+    assert response.json()["seed"] == 20261112
+
+
+def test_evaluate_no_input_evaluates_the_default_corpus():
+    response = evaluate_client().post("/evaluate", json={})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["n_transactions"] == 5100
+    assert body["by_family"]["legitimate"]["correct_rate"] == 1.0
+    assert body["by_family"]["attack"]["missed"] == 100
+    assert len(body["missed_attack_ids"]) == 100
+
+
+def test_evaluate_revoked_ids_override_measures_revocation_worth():
+    corpus = build_corpus(99, counts=TINY_COUNTS)
+    response = evaluate_client().post(
+        "/evaluate", json={"corpus": corpus, "revoked_ids": []}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body == evaluate_corpus(corpus, revoked_ids=set())
+    revoked = body["by_class"]["attack_revoked_single"]
+    assert revoked["correct_rate"] == 0.0
+    assert revoked["missed"] == 4
+
+
+def test_evaluate_revoked_ids_matching_corpus_state_is_a_no_op():
+    corpus = build_corpus(99, counts=TINY_COUNTS)
+    response = evaluate_client().post(
+        "/evaluate",
+        json={"corpus": corpus, "revoked_ids": corpus["revoked_ids"]},
+    )
+    assert response.status_code == 200
+    assert response.json() == evaluate_corpus(corpus)
+
+
+def test_evaluate_does_not_touch_service_revocations_or_audit(setup):
+    corpus = build_corpus(99, counts=TINY_COUNTS)
+    response = setup["client"].post("/evaluate", json={"corpus": corpus})
+    assert response.status_code == 200
+    assert len(setup["revocations"]) == 0
+    assert setup["audit"].entries() == []
+
+
+@pytest.mark.parametrize("body", [
+    {"corpus": {"transactions": "not a list"}},
+    {"corpus": {"transactions": []}},
+    {"corpus": {"transactions": [{"tx_id": "x"}]}},
+    {"counts": {"no_such_class": 1}},
+    {"counts": {"legit_single": -1}},
+    {"counts": {"legit_single": "four"}},
+])
+def test_evaluate_malformed_input_is_422(body):
+    response = evaluate_client().post("/evaluate", json=body)
+    assert response.status_code == 422
+
+
+def test_evaluate_corpus_with_seed_or_counts_is_422():
+    corpus = build_corpus(99, counts=TINY_COUNTS)
+    client = evaluate_client()
+    with_seed = client.post(
+        "/evaluate", json={"corpus": corpus, "seed": 99}
+    )
+    assert with_seed.status_code == 422
+    with_counts = client.post(
+        "/evaluate", json={"corpus": corpus, "counts": TINY_COUNTS}
+    )
+    assert with_counts.status_code == 422
+
+
+def test_evaluate_duplicate_transaction_ids_are_422():
+    corpus = build_corpus(99, counts=TINY_COUNTS)
+    corpus["transactions"] = corpus["transactions"][:1] * 2
+    response = evaluate_client().post("/evaluate", json={"corpus": corpus})
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("body", [
+    {"corpus": "not a corpus"},
+    {"corpus": []},
+    {"seed": "ninety-nine"},
+    {"revoked_ids": "cred-000001"},
+])
+def test_evaluate_wrong_request_shape_is_422(body):
+    response = evaluate_client().post("/evaluate", json=body)
+    assert response.status_code == 422

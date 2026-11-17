@@ -420,7 +420,9 @@ the revoked classes stop being caught. A malformed corpus raises
 `ValueError` instead of producing partial numbers, and an empty
 corpus reports its rates as `None`, never as a made-up zero. Results
 round-trip through `evaluation_to_json` and `evaluation_from_json`.
-The demo's step 15 prints the headline.
+The demo's step 15 prints the headline. The same evaluation is
+available over HTTP at `POST /evaluate` in the demo service (see
+below).
 
 ## FastAPI demo service
 
@@ -459,7 +461,24 @@ optional caller-supplied `rows`; when `rows` is omitted the bundled
 snapshot is scored, and with `per_seed` set each seed is scored
 separately with confidence intervals from the bundled per-seed
 snapshot; a malformed row, an unknown policy, or a bad option is a
-422).
+422), and
+`POST /evaluate` (run the gate over a whole corpus and return the
+`evaluate_corpus` result: headline counts, per-class and per-family
+breakdowns, and the missed and falsely rejected transaction ids;
+send `{"corpus": {...}}` for a corpus built elsewhere, or
+`{"seed": ..., "counts": {...}}` and the service builds the seeded
+corpus itself, and with neither it builds and evaluates the default
+corpus; `corpus` cannot be combined with `seed` or `counts`; an
+optional `revoked_ids` list overrides the corpus revocation state,
+so an empty list measures what revocation is worth on the same
+corpus; a malformed corpus, an unknown class in `counts`, or a
+conflicting request is a 422, never a partial result).
+`POST /evaluate` is an evaluation harness, not an authorization
+path: it judges a corpus against the issuer key the corpus itself
+carries, because a synthetic corpus is issued by its own seeded
+key, not by the key this service trusts for `/verify` and
+`/checkout`. Its verdicts authorize nothing, and it touches neither
+the service revocation list nor the audit log.
 A verify or checkout answer is `{"ok": true, "reason": "ok"}` or
 `{"accepted": true, "reason": "allowed"}` on success, and the
 fail-closed reason otherwise: `malformed`, `bad_signature`, `revoked`,
@@ -522,10 +541,13 @@ evaluation corpus shipped 2026-11-13, so the gate now has a deterministic
 credential-layer test set of its own. The gate evaluation helper shipped
 2026-11-15: `evaluate_corpus` runs the gate over a built corpus and
 reports per-class verdicts and catch rates, and the corpus tests use it
-instead of their own loop. The next loop has one uncommitted candidate
-left: a `POST /evaluate` endpoint in the demo service, so a gate
-evaluation over a caller-supplied corpus is available over HTTP the
-same way benchmark scoring already is. Production
+instead of their own loop. `POST /evaluate` shipped 2026-11-17, so a
+gate evaluation over a caller-supplied or server-built corpus is now
+available over HTTP the same way benchmark scoring already is. The
+next loop has one uncommitted candidate left: replay protection, a
+presentation nonce or idempotency store that would close the
+in-window replay limitation the corpus and the evaluation now
+measure at 100 missed attacks on the default corpus. Production
 authentication, persistent revocation state and merchant integration remain outside
 this demo's guarantees.
 

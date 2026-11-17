@@ -30,6 +30,27 @@ Endpoints:
   confidence interval, computed from the bundled per-seed snapshot
   when ``rows`` is omitted. A malformed row, an unknown policy, or
   an unsupported option is a 422, never a score.
+- ``POST /evaluate``: run the gate over a whole corpus with
+  ``evaluate_corpus`` and return its result: headline counts, per
+  class and per family breakdowns, and the missed and falsely
+  rejected transaction ids. Send ``{"corpus": {...}}`` for a corpus
+  built elsewhere, or ``{"seed": ..., "counts": {...}}`` and the
+  service builds the seeded corpus itself; with neither, the default
+  corpus is built and evaluated. ``corpus`` cannot be combined with
+  ``seed`` or ``counts``. An optional ``revoked_ids`` list overrides
+  the corpus revocation state, so sending an empty list measures
+  what revocation is worth on the same corpus. A malformed corpus,
+  an unknown class in ``counts``, or a conflicting request is a 422,
+  never a partial result.
+
+  This endpoint is an evaluation harness, not an authorization
+  path. It judges a corpus against the issuer key the corpus itself
+  carries, and against the corpus revocation state unless
+  ``revoked_ids`` overrides it, because a synthetic corpus is issued
+  by its own seeded key, not by the key this service trusts for
+  ``/verify`` and ``/checkout``. Its verdicts are measurements over
+  supplied traffic; they authorize nothing, and the service
+  revocation list and audit log are not touched.
 
 Failure handling is fail-closed all the way down. A malformed credential
 is a ``{"ok": false, "reason": "malformed"}`` response, never a 500 and
@@ -56,8 +77,10 @@ from kya import (
     RevocationList,
     authorize_purchase,
     authorize_purchase_chain,
+    build_corpus,
     bundled_per_seed_results_path,
     bundled_results_path,
+    evaluate_corpus,
     load_agentrisk_csv,
     score_agentrisk_policy,
     score_agentrisk_policy_per_seed,
@@ -106,6 +129,13 @@ class BenchmarkAgentRiskRequest(BaseModel):
     score_column: str | None = None
     per_seed: bool = False
     confidence: float = 0.95
+
+
+class EvaluateRequest(BaseModel):
+    corpus: dict | None = None
+    seed: int | None = None
+    counts: dict | None = None
+    revoked_ids: list | None = None
 
 
 def _payload_of(credential):
@@ -352,6 +382,32 @@ def create_app(public_key, *, revocations=None, audit=None, audit_public_key=Non
                 score_column=request.score_column,
             )
             return {"counts": counts, "result": result}
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/evaluate")
+    def evaluate(request: EvaluateRequest):
+        # A corpus built elsewhere and a corpus built here from a
+        # seed are two ways to name the same input; asking for both
+        # at once is ambiguous, so it is a 422, not a silent choice.
+        try:
+            if request.corpus is not None:
+                if request.seed is not None or request.counts is not None:
+                    raise ValueError(
+                        "corpus cannot be combined with seed or counts"
+                    )
+                corpus = request.corpus
+            else:
+                kwargs = {}
+                if request.seed is not None:
+                    kwargs["seed"] = request.seed
+                if request.counts is not None:
+                    kwargs["counts"] = request.counts
+                corpus = build_corpus(**kwargs)
+            overrides = {}
+            if request.revoked_ids is not None:
+                overrides["revoked_ids"] = set(request.revoked_ids)
+            return evaluate_corpus(corpus, **overrides)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
