@@ -306,6 +306,43 @@ def main():
         )
     )
 
+    # Replay protection: the same evaluation with a ReplayStore
+    # catches the replays step 15 missed. Each transaction presents
+    # under its own id, and a replay presents under its source
+    # transaction's id, the way a replayed presentation reuses the
+    # original presentation id in the wild. At the library level the
+    # same store rejects a second spend of one presentation id while
+    # a fresh id under the same credential still goes through.
+    from kya import ReplayStore
+
+    protected = evaluate_corpus(corpus, replay_protection=True)
+    protected_attack = protected["by_family"]["attack"]
+    print(
+        "16. Gate evaluation with replay protection: attacks %d/%d "
+        "caught (%d missed)"
+        % (
+            protected_attack["correct"],
+            protected_attack["n"],
+            protected_attack["missed"],
+        )
+    )
+
+    store = ReplayStore()
+    fresh = bench_credential("agent-replay-demo")
+    ok, reason = authorize_purchase(
+        public_key, fresh, 30.0, "electronics",
+        replay_store=store, presentation_id="demo-order-1",
+    )
+    first = verdict(ok, reason)
+    ok, reason = authorize_purchase(
+        public_key, fresh, 30.0, "electronics",
+        replay_store=store, presentation_id="demo-order-1",
+    )
+    print(
+        "16. Replay protection (presentation demo-order-1): first "
+        "spend %s, replay %s" % (first, verdict(ok, reason))
+    )
+
 
 if __name__ == "__main__":
     main()

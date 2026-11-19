@@ -8,6 +8,7 @@ its scope? It does not issue or verify credentials itself; see credentials.py.
 import math
 
 from .credentials import verify_credential
+from .replay import consume_presentation
 
 REASON_ALLOWED = "allowed"
 REASON_AMOUNT_EXCEEDS_SCOPE = "amount_exceeds_scope"
@@ -47,15 +48,45 @@ def check_purchase(payload, amount_usd, category):
     return True, REASON_ALLOWED
 
 
-def authorize_purchase(public_key, credential, amount_usd, category, **verify_kwargs):
+def authorize_purchase(
+    public_key,
+    credential,
+    amount_usd,
+    category,
+    *,
+    replay_store=None,
+    presentation_id=None,
+    **verify_kwargs,
+):
     """Verify a credential and check a purchase against it, in one call.
 
     Returns (True, "allowed") only when verification passes AND the purchase
     is inside scope. Otherwise returns (False, reason) where reason is the
     verification reason (e.g. "bad_signature", "expired", "revoked") or the
     scope reason (e.g. "amount_exceeds_scope", "category_not_allowed").
+
+    Replay protection is opt-in: pass a ``ReplayStore`` as
+    ``replay_store`` together with the presentation's
+    ``presentation_id`` and a presentation that was already authorized
+    under the same credential and id is rejected as ``replay``, while a
+    missing id is rejected as ``missing_presentation_id``. The id is
+    consumed only by a purchase that is actually allowed, so a rejected
+    attempt never burns it. Without a store, behavior is exactly as
+    before and repeat presentations of one credential are accepted.
     """
     ok, reason = verify_credential(public_key, credential, **verify_kwargs)
     if not ok:
         return False, reason
-    return check_purchase(credential["payload"], amount_usd, category)
+    ok, reason = check_purchase(credential["payload"], amount_usd, category)
+    if not ok:
+        return False, reason
+    if replay_store is not None:
+        spent, replay_reason = consume_presentation(
+            replay_store,
+            credential["payload"].get("credential_id"),
+            presentation_id,
+            seen_at=verify_kwargs.get("now"),
+        )
+        if not spent:
+            return False, replay_reason
+    return True, REASON_ALLOWED

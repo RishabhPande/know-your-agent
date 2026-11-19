@@ -13,8 +13,12 @@ Endpoints:
 - ``POST /verify``: verify one credential, returns ``ok`` and ``reason``.
 - ``POST /verify-chain``: verify a delegation chain, same shape.
 - ``POST /checkout``: verify a credential and check one purchase against
-  its scope, returns ``accepted`` and ``reason``.
+  its scope, returns ``accepted`` and ``reason``. An optional
+  ``presentation_id`` turns on replay protection for that presentation:
+  the same id authorized twice under one credential is rejected as
+  ``replay``.
 - ``POST /checkout-chain``: verify every delegation link, then check the leaf purchase scope.
+  ``presentation_id`` works the same way, keyed by the leaf credential.
 - ``POST /revoke``: revoke a credential id (or a full credential, which
   also records the revocation in the audit log when one is configured).
 - ``GET /audit``: the audit log entries plus their verification result,
@@ -39,7 +43,9 @@ Endpoints:
   corpus is built and evaluated. ``corpus`` cannot be combined with
   ``seed`` or ``counts``. An optional ``revoked_ids`` list overrides
   the corpus revocation state, so sending an empty list measures
-  what revocation is worth on the same corpus. A malformed corpus,
+  what revocation is worth on the same corpus. An optional
+  ``replay_protection`` flag judges the corpus with a fresh replay
+  store, which catches the in-window replay class. A malformed corpus,
   an unknown class in ``counts``, or a conflicting request is a 422,
   never a partial result.
 
@@ -74,6 +80,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from kya import (
+    ReplayStore,
     RevocationList,
     authorize_purchase,
     authorize_purchase_chain,
@@ -102,12 +109,14 @@ class CheckoutRequest(BaseModel):
     credential: dict
     amount_usd: float
     category: str
+    presentation_id: str | None = None
 
 
 class CheckoutChainRequest(BaseModel):
     chain: list
     amount_usd: float
     category: str
+    presentation_id: str | None = None
 
 
 class RevokeRequest(BaseModel):
@@ -136,6 +145,7 @@ class EvaluateRequest(BaseModel):
     seed: int | None = None
     counts: dict | None = None
     revoked_ids: list | None = None
+    replay_protection: bool = False
 
 
 def _payload_of(credential):
@@ -181,7 +191,28 @@ def _record_verified(app, credential, ok, reason):
         pass
 
 
-def create_app(public_key, *, revocations=None, audit=None, audit_public_key=None):
+def _replay_kwargs(app, presentation_id):
+    """Replay arguments for a checkout, or none when no id is carried.
+
+    Replay protection in this service applies to presentations that
+    carry a ``presentation_id``: with an id, the app replay store is
+    consulted and a repeat is rejected as ``replay``; without one, the
+    checkout behaves exactly as it did before replay protection
+    existed. An empty string is an id the caller tried to carry, so it
+    goes through and fails closed as ``missing_presentation_id``.
+    """
+    if presentation_id is None:
+        return {}
+    return {
+        "replay_store": app.state.replay_store,
+        "presentation_id": presentation_id,
+    }
+
+
+def create_app(
+    public_key, *, revocations=None, audit=None, audit_public_key=None,
+    replay_store=None,
+):
     """Build the demo service app for one trusted issuer public key.
 
     Args:
@@ -197,6 +228,10 @@ def create_app(public_key, *, revocations=None, audit=None, audit_public_key=Non
         audit_public_key: public key that signed the audit log, when
             it differs from the issuer key. Defaults to ``public_key``,
             which is the demo setup, where one key signs both.
+        replay_store: a ``ReplayStore`` holding the presentations this
+            service has already authorized. A fresh empty store is
+            created when omitted, so each app owns its replay state
+            unless the caller shares one, the same rule as revocations.
 
     Returns a FastAPI app. The app holds no private key material.
     """
@@ -204,6 +239,9 @@ def create_app(public_key, *, revocations=None, audit=None, audit_public_key=Non
     app.state.public_key = public_key
     app.state.revocations = (
         revocations if revocations is not None else RevocationList()
+    )
+    app.state.replay_store = (
+        replay_store if replay_store is not None else ReplayStore()
     )
     app.state.audit = audit
     app.state.audit_public_key = (
@@ -243,6 +281,7 @@ def create_app(public_key, *, revocations=None, audit=None, audit_public_key=Non
             request.amount_usd,
             request.category,
             revoked_ids=app.state.revocations,
+            **_replay_kwargs(app, request.presentation_id),
         )
         # Record the checkout verdict itself ("allowed" or the failure
         # reason), not just the verification verdict, so the log reads
@@ -271,6 +310,7 @@ def create_app(public_key, *, revocations=None, audit=None, audit_public_key=Non
             request.amount_usd,
             request.category,
             revoked_ids=app.state.revocations,
+            **_replay_kwargs(app, request.presentation_id),
         )
         # Record only a usable leaf identity; malformed chains still reject
         # without inventing an audit identity or changing their verdict.
@@ -407,6 +447,8 @@ def create_app(public_key, *, revocations=None, audit=None, audit_public_key=Non
             overrides = {}
             if request.revoked_ids is not None:
                 overrides["revoked_ids"] = set(request.revoked_ids)
+            if request.replay_protection:
+                overrides["replay_protection"] = True
             return evaluate_corpus(corpus, **overrides)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc

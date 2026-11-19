@@ -64,7 +64,8 @@ from .credentials import (
     issue_credential,
     verify_credential,
 )
-from .policy import check_purchase
+from .policy import REASON_ALLOWED, check_purchase
+from .replay import consume_presentation
 
 REASON_BAD_CHAIN = "bad_chain"
 REASON_SCOPE_WIDENED = "scope_widened"
@@ -263,7 +264,14 @@ def verify_chain(public_key, chain, *, now=None, revoked_ids=None):
 
 
 def authorize_purchase_chain(
-    public_key, chain, amount_usd, category, **verify_kwargs
+    public_key,
+    chain,
+    amount_usd,
+    category,
+    *,
+    replay_store=None,
+    presentation_id=None,
+    **verify_kwargs,
 ):
     """Verify a chain and check a purchase against its leaf scope.
 
@@ -271,10 +279,27 @@ def authorize_purchase_chain(
     the purchase is inside the leaf credential's scope. Otherwise the
     chain reason (e.g. "scope_widened", "revoked") or a purchase-scope
     reason (e.g. "amount_exceeds_scope"). An empty chain is "malformed".
+
+    Replay protection works the same way as in ``authorize_purchase``
+    (see policy.py), keyed by the leaf credential's id: the leaf is
+    the credential actually being spent. The presentation id is
+    consumed only by a purchase that is actually allowed.
     """
     if not isinstance(chain, (list, tuple)) or not chain:
         return False, REASON_MALFORMED
     ok, reason = verify_chain(public_key, chain, **verify_kwargs)
     if not ok:
         return False, reason
-    return check_purchase(chain[-1]["payload"], amount_usd, category)
+    ok, reason = check_purchase(chain[-1]["payload"], amount_usd, category)
+    if not ok:
+        return False, reason
+    if replay_store is not None:
+        spent, replay_reason = consume_presentation(
+            replay_store,
+            chain[-1]["payload"].get("credential_id"),
+            presentation_id,
+            seen_at=verify_kwargs.get("now"),
+        )
+        if not spent:
+            return False, replay_reason
+    return True, REASON_ALLOWED

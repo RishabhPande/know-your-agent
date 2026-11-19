@@ -30,13 +30,31 @@ identity: scoped, session-limited, and revocable.
    caught only by an external anchor passed as expected_last_hash.
 
 ## Planned next (not yet shipped)
-- Backlog complete as of 2026-11-09 (see below). Candidate for the
-  next loop, uncommitted: replay protection, a presentation nonce
-  or idempotency store that would close the in-window replay
-  limitation the corpus and the evaluation measure at 100 missed
-  attacks on the default corpus.
+- Backlog complete as of 2026-11-09 (see below), and replay
+  protection shipped 2026-11-19 (see below). Candidate for the
+  next loop, uncommitted: shared, persistent state for
+  multi-process deployments, so the revocation and replay stores
+  survive restarts and agree across processes instead of living
+  in one process's memory.
 
 ## Shipped since v0.1
+- Replay protection (DONE 2026-11-19: kya/replay.py, ReplayStore
+  keyed by (credential_id, presentation_id) with strict JSON
+  persistence in the RevocationList pattern and a caller-cutoff
+  prune; authorize_purchase and authorize_purchase_chain accept
+  replay_store and presentation_id, consume the id only on an
+  allowed purchase, and reject a repeat as replay and a missing id
+  as missing_presentation_id; plain verify_credential never
+  consumes an id; evaluate_corpus gains replay_protection=True,
+  presenting each transaction under its own tx id and a replay
+  transaction under its source tx id, which catches all 100
+  in-window replays on the default corpus (attacks 1950/1950, no
+  other verdict changes); the service accepts presentation_id on
+  POST /checkout and POST /checkout-chain (keyed by the leaf for a
+  chain, per-app store unless shared) and replay_protection on
+  POST /evaluate; demo step 16; 20 new tests, 275 total green.
+  Honest limit: unshared stores do not share replay state, so a
+  replay aimed at a different process still passes).
 - Gate evaluation endpoint (DONE 2026-11-17: POST /evaluate in
   service/app.py; runs evaluate_corpus over a caller-supplied corpus
   in {"corpus": {...}} form, or over a corpus the service builds
@@ -174,6 +192,17 @@ identity: scoped, session-limited, and revocable.
     all failures as 422; evaluation harness only, service
     revocations and audit untouched; 19 new tests, 255 total
     green).
+13. Replay protection (DONE 2026-11-19: kya/replay.py, ReplayStore
+    with (credential_id, presentation_id) keys, strict JSON
+    persistence, and prune; replay_store and presentation_id on
+    authorize_purchase and authorize_purchase_chain, consumed only
+    on an allowed purchase, reasons replay and
+    missing_presentation_id; evaluate_corpus replay_protection
+    mode presenting replays under their source transaction id,
+    catching all 100 default-corpus in-window replays with no
+    other verdict changed; presentation_id on POST /checkout and
+    POST /checkout-chain and replay_protection on POST /evaluate;
+    demo step 16; 20 new tests, 275 total green).
 
 ## Naming and license (suggested)
 - Repo: `know-your-agent` (public)

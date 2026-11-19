@@ -48,6 +48,8 @@ Scope: up to $50 in electronics. Session: 1 hour.
 13. AgentRisk AgentGate per seed (5 seeds): mean AUC 1.00, 95% CI [1.00, 1.00]
 14. Seeded corpus (seed 20261112, 5100 transactions, 20 classes): 2500 legitimate, 650 policy, 1950 attacks; deterministic rebuild matches: True
 15. Gate evaluation (default corpus): legitimate 2500/2500 accepted, policy 650/650 rejected, attacks 1850/1950 caught (100 missed: attack_replay_in_window)
+16. Gate evaluation with replay protection: attacks 1950/1950 caught (0 missed)
+16. Replay protection (presentation demo-order-1): first spend ACCEPTED (allowed), replay REJECTED (replay)
 ```
 
 Run the tests with:
@@ -373,10 +375,12 @@ text = corpus_to_json(corpus)  # canonical JSON, sorted keys
 
 One class is deliberately uncomfortable: `attack_replay_in_window`
 replays a genuine presentation while the credential is still inside
-its session window and the purchase is still in scope. KYA v0.1 has
-no nonce or idempotency token, so the gate accepts these. The class
-exists so the limitation is measured and reported, not discovered by
-a reviewer. Keys are derived from the seed, credential ids come from
+its session window and the purchase is still in scope. The gate
+without replay protection accepts these, because a bare credential
+carries nothing that distinguishes a first presentation from a
+repeat. The class exists so the gap is measured and reported, not
+discovered by a reviewer, and so replay protection (see below) has a
+number to move: with it on, the class is caught in full. Keys are derived from the seed, credential ids come from
 a counter, and issuance runs under a fixed clock, so the same seed
 regenerates the identical corpus, including the issuer key in PEM
 form at `corpus["issuer_public_key_pem"]` and the revocation state at
@@ -412,9 +416,11 @@ result["by_class"]["attack_forged_signature"]["reasons"]
 
 On the default corpus the gate accepts all 2,500 legitimate
 transactions, rejects all 650 policy violations, and catches 1,850 of
-1,950 attacks. Every miss is an in-window replay, the known v0.1
-limitation above, now reported as a measured 100 out of 100 for that
-class instead of a caveat in prose. Passing an empty set as
+1,950 attacks. Every miss is an in-window replay, the gap above, now
+reported as a measured 100 out of 100 for that class instead of a
+caveat in prose. Passing `replay_protection=True` judges the same
+corpus with a replay store and catches all 1,950 attacks; see the
+next section. Passing an empty set as
 `revoked_ids` measures what revocation is worth on the same corpus:
 the revoked classes stop being caught. A malformed corpus raises
 `ValueError` instead of producing partial numbers, and an empty
@@ -423,6 +429,59 @@ round-trip through `evaluation_to_json` and `evaluation_from_json`.
 The demo's step 15 prints the headline. The same evaluation is
 available over HTTP at `POST /evaluate` in the demo service (see
 below).
+
+## Replay protection
+
+A credential on its own is a bearer presentation: a copy of a genuine
+credential, presented again inside its session window, looks exactly
+like the original. `kya/replay.py` closes that gap the way payment
+APIs close it, with an idempotency key. Each purchase presentation
+carries a caller-chosen `presentation_id`, generated fresh for each
+distinct purchase and reused only when retrying the same purchase.
+`ReplayStore` remembers the (credential id, presentation id) pairs it
+has already authorized; a second spend of the same pair is rejected
+as `replay`.
+
+```python
+from kya import ReplayStore, authorize_purchase
+
+store = ReplayStore()
+ok, reason = authorize_purchase(
+    public_key, credential, 30.0, "electronics",
+    replay_store=store, presentation_id="order-1",
+)  # (True, "allowed")
+ok, reason = authorize_purchase(
+    public_key, credential, 30.0, "electronics",
+    replay_store=store, presentation_id="order-1",
+)  # (False, "replay")
+```
+
+The rules are fail closed. Only an allowed purchase consumes an id,
+so a rejected attempt cannot burn one and an attacker presenting
+someone else's id with a bad credential cannot lock the genuine
+holder out. Plain verification never consumes an id: asking
+`verify_credential` twice is legitimate, only spending is a
+presentation. Passing a store without an id rejects the purchase as
+`missing_presentation_id` rather than silently skipping the check,
+and the same id under a different credential is a different
+presentation. Chain purchases work the same way, keyed by the leaf
+credential id. The store saves and loads as JSON with the same strict
+validation as the revocation list, and `prune` drops entries first
+seen before a cutoff the caller chooses.
+
+On the default corpus, `evaluate_corpus(corpus,
+replay_protection=True)` catches all 1,950 attacks, against 1,850
+without protection, and changes no other verdict. In the demo
+service, `POST /checkout` and `POST /checkout-chain` accept an
+optional `presentation_id`, and `POST /evaluate` accepts
+`replay_protection`.
+
+One honest limit: the store only knows what it has seen. Two merchant
+processes that do not share a store do not share replay state, so a
+replay aimed at a different process than the original presentation
+still passes. A real deployment needs one shared store, and entries
+must live at least as long as the credential they guard can still be
+presented.
 
 ## FastAPI demo service
 
@@ -471,8 +530,15 @@ corpus itself, and with neither it builds and evaluates the default
 corpus; `corpus` cannot be combined with `seed` or `counts`; an
 optional `revoked_ids` list overrides the corpus revocation state,
 so an empty list measures what revocation is worth on the same
-corpus; a malformed corpus, an unknown class in `counts`, or a
+corpus; an optional `replay_protection` flag judges the corpus with
+a fresh replay store, which catches the in-window replay class; a
+malformed corpus, an unknown class in `counts`, or a
 conflicting request is a 422, never a partial result).
+`POST /checkout` and `POST /checkout-chain` accept an optional
+`presentation_id`: when one is sent, the app's replay store is
+consulted and a repeat spend of the same id under the same
+credential (the leaf, for a chain) is rejected as `replay`; when no
+id is sent, the checkout behaves exactly as before.
 `POST /evaluate` is an evaluation harness, not an authorization
 path: it judges a corpus against the issuer key the corpus itself
 carries, because a synthetic corpus is issued by its own seeded
@@ -485,12 +551,15 @@ fail-closed reason otherwise: `malformed`, `bad_signature`, `revoked`,
 `expired`, `amount_exceeds_scope`, `category_not_allowed`, and so on.
 A malformed credential is a rejection with a reason, never a 500, and
 never an acceptance. To embed the service in your own app instead of
-the demo, call `create_app(public_key, revocations=..., audit=...)`
+the demo, call `create_app(public_key, revocations=..., audit=...,
+replay_store=...)`
 from `service.app` and serve the result with uvicorn. Invalid revocation
 identifiers, including empty IDs in either request form, return 422 without
 changing revocation or audit state. Revocation state
 belongs to each app instance: two apps built without a shared list do
-not share revocations, which the tests pin down.
+not share revocations, which the tests pin down. Replay state follows
+the same rule: two apps built without a shared store do not share
+seen presentations.
 
 ### Authorize a delegated purchase
 
@@ -543,11 +612,15 @@ credential-layer test set of its own. The gate evaluation helper shipped
 reports per-class verdicts and catch rates, and the corpus tests use it
 instead of their own loop. `POST /evaluate` shipped 2026-11-17, so a
 gate evaluation over a caller-supplied or server-built corpus is now
-available over HTTP the same way benchmark scoring already is. The
-next loop has one uncommitted candidate left: replay protection, a
-presentation nonce or idempotency store that would close the
-in-window replay limitation the corpus and the evaluation now
-measure at 100 missed attacks on the default corpus. Production
+available over HTTP the same way benchmark scoring already is.
+Replay protection shipped 2026-11-19: a `ReplayStore` keyed by
+(credential id, presentation id) closes the in-window replay gap,
+taking the default corpus from 100 missed attacks to none when the
+evaluation runs with `replay_protection=True`. The next loop has one
+uncommitted candidate left: shared, persistent state for
+multi-process deployments, so revocation and replay stores survive
+restarts and agree across processes instead of living in one
+process's memory. Production
 authentication, persistent revocation state and merchant integration remain outside
 this demo's guarantees.
 

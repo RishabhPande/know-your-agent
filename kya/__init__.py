@@ -1,4 +1,4 @@
-"""Know Your Agent: the public API surface (v0.1 + delegation + revocation + audit + benchmark + agentrisk + corpus + evaluation)."""
+"""Know Your Agent: the public API surface (v0.1 + delegation + revocation + audit + benchmark + agentrisk + corpus + evaluation + replay protection)."""
 
 from .agentrisk import (
     AGENTRISK_DATASET_URL,
@@ -81,6 +81,12 @@ from .policy import (
     authorize_purchase,
     check_purchase,
 )
+from .replay import (
+    REASON_MISSING_PRESENTATION_ID,
+    REASON_REPLAY,
+    REPLAY_STORE_VERSION,
+    ReplayStore,
+)
 from .revocation import REVOCATION_LIST_VERSION, RevocationList
 
 __all__ = [
@@ -108,15 +114,19 @@ __all__ = [
     "REASON_EXPIRED",
     "REASON_INVALID_AMOUNT",
     "REASON_MALFORMED",
+    "REASON_MISSING_PRESENTATION_ID",
     "REASON_NOT_YET_VALID",
     "REASON_NO_PURCHASE_SCOPE",
     "REASON_OK",
     "REASON_PRINCIPAL_MISMATCH",
+    "REASON_REPLAY",
     "REASON_REVOKED",
     "REASON_SCOPE_WIDENED",
     "REASON_UNSUPPORTED_ALGORITHM",
     "REASON_WINDOW_WIDENED",
+    "REPLAY_STORE_VERSION",
     "REVOCATION_LIST_VERSION",
+    "ReplayStore",
     "RevocationList",
     "authorize_purchase",
     "authorize_purchase_chain",

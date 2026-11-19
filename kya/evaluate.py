@@ -27,9 +27,14 @@ It also names the misses instead of only counting them:
 ``missed_attack_ids`` lists the attack transactions the gate accepted,
 and ``false_reject_ids`` lists the legitimate transactions it turned
 away. On the default corpus the missed list is exactly the
-in-window replay class, which KYA v0.1 accepts for lack of a nonce.
-That limitation is now a line in a result dict that any consumer can
-assert on, rather than a fact each consumer has to rediscover.
+in-window replay class, which the unprotected gate accepts. Passing
+``replay_protection=True`` judges the same corpus with a
+``ReplayStore`` (see kya/replay.py): each transaction presents under
+its own transaction id, and a replay transaction, whose metadata
+names its source transaction, presents under the source's id, so the
+replays are caught as ``replay`` and the missed list comes back
+empty. The unprotected default stays the default so the two runs
+remain comparable.
 
 Validation is strict and raises ``ValueError`` on a malformed corpus,
 matching the rest of the toolkit: a corpus that is not a dict, a
@@ -52,6 +57,7 @@ from .corpus import ATTACK_CLASSES, LEGIT_CLASSES, POLICY_CLASSES
 from .credentials import load_public_key_pem
 from .delegation import authorize_purchase_chain
 from .policy import authorize_purchase
+from .replay import ReplayStore
 
 EVALUATION_VERSION = 1
 
@@ -135,7 +141,9 @@ def _finish_bucket(bucket):
     return out
 
 
-def evaluate_corpus(corpus, *, public_key=None, revoked_ids=None):
+def evaluate_corpus(
+    corpus, *, public_key=None, revoked_ids=None, replay_protection=False
+):
     """Run the KYA gate over every transaction in a built corpus.
 
     Args:
@@ -148,6 +156,16 @@ def evaluate_corpus(corpus, *, public_key=None, revoked_ids=None):
             set of credential ids or a ``RevocationList``. Defaults to
             the corpus ``revoked_ids``. Pass an empty set to measure
             what revocation is worth on this corpus.
+        replay_protection: when True, judge with a fresh
+            ``ReplayStore`` (see kya/replay.py). Each transaction
+            presents under its own transaction id as its presentation
+            id, except a transaction whose metadata names a
+            ``source_tx_id``: that transaction is a replay of the
+            source presentation, so it presents under the source's id,
+            exactly the way a replayed presentation reuses the original
+            presentation's id in the wild. On the default corpus this
+            catches all 100 in-window replays that the unprotected
+            gate accepts, and changes no other verdict.
 
     Returns a JSON-serializable dict with the corpus seed, headline
     counts and correct rate, per-family and per-class breakdowns (each
@@ -164,6 +182,7 @@ def evaluate_corpus(corpus, *, public_key=None, revoked_ids=None):
         raise ValueError("corpus transactions must be a list")
     key = _resolve_public_key(corpus, public_key)
     revoked = _resolve_revoked_ids(corpus, revoked_ids)
+    replay_store = ReplayStore() if replay_protection else None
 
     verdicts = []
     by_class = {}
@@ -192,6 +211,16 @@ def evaluate_corpus(corpus, *, public_key=None, revoked_ids=None):
         label = tx["label"]
         kind = tx.get("kind")
         now = _parse_timestamp(tx.get("timestamp"), tx_id)
+        replay_kwargs = {}
+        if replay_store is not None:
+            meta = tx.get("meta")
+            source_tx_id = (
+                meta.get("source_tx_id") if isinstance(meta, dict) else None
+            )
+            replay_kwargs = {
+                "replay_store": replay_store,
+                "presentation_id": source_tx_id or tx_id,
+            }
         if kind == "single":
             ok, reason = authorize_purchase(
                 key,
@@ -200,6 +229,7 @@ def evaluate_corpus(corpus, *, public_key=None, revoked_ids=None):
                 tx.get("category"),
                 now=now,
                 revoked_ids=revoked,
+                **replay_kwargs,
             )
         elif kind == "chain":
             ok, reason = authorize_purchase_chain(
@@ -209,6 +239,7 @@ def evaluate_corpus(corpus, *, public_key=None, revoked_ids=None):
                 tx.get("category"),
                 now=now,
                 revoked_ids=revoked,
+                **replay_kwargs,
             )
         else:
             raise ValueError(
