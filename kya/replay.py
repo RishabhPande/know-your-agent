@@ -49,6 +49,10 @@ unknown format version, rather than silently dropping entries: a store
 that quietly forgot a seen presentation would reopen the replay hole
 without anyone noticing.
 
+Operations on a shared store are protected by an in-process lock.
+Concurrent threads cannot both record the same new presentation, and
+entry snapshots and pruning use that same lock.
+
 One honest limit: the store only knows what it has seen. Two merchant
 processes that do not share a store do not share replay state, so a
 replay aimed at a different process than the original presentation
@@ -62,6 +66,7 @@ that are still inside their session window.
 
 import json
 from datetime import datetime, timezone
+from threading import Lock
 
 from .credentials import REASON_MALFORMED, _to_utc_iso
 
@@ -117,6 +122,7 @@ class ReplayStore:
                 Duplicate pairs raise ``ValueError``.
         """
         self._entries = {}
+        self._lock = Lock()
         if entries is not None:
             for entry in entries:
                 parsed = self._parse_entry(entry)
@@ -158,14 +164,15 @@ class ReplayStore:
         _validate_id(credential_id, "credential_id")
         _validate_id(presentation_id, "presentation_id")
         key = (credential_id, presentation_id)
-        if key in self._entries:
-            return False
-        self._entries[key] = {
-            "credential_id": credential_id,
-            "presentation_id": presentation_id,
-            "seen_at": _normalize_time(seen_at, "seen_at"),
-        }
-        return True
+        with self._lock:
+            if key in self._entries:
+                return False
+            self._entries[key] = {
+                "credential_id": credential_id,
+                "presentation_id": presentation_id,
+                "seen_at": _normalize_time(seen_at, "seen_at"),
+            }
+            return True
 
     def is_seen(self, credential_id, presentation_id):
         """Return True iff this pair was already recorded.
@@ -177,14 +184,17 @@ class ReplayStore:
             presentation_id, str
         ):
             return False
-        return (credential_id, presentation_id) in self._entries
+        with self._lock:
+            return (credential_id, presentation_id) in self._entries
 
     def __len__(self):
-        return len(self._entries)
+        with self._lock:
+            return len(self._entries)
 
     def entries(self):
         """Return copies of all entries, in first-seen order."""
-        return [dict(entry) for entry in self._entries.values()]
+        with self._lock:
+            return [dict(entry) for entry in self._entries.values()]
 
     def prune(self, *, seen_before):
         """Drop entries first seen before a cutoff. Returns the count dropped.
@@ -198,14 +208,15 @@ class ReplayStore:
         oldest still-valid credential window the caller cares about.
         """
         cutoff = _normalize_time(seen_before, "seen_before")
-        doomed = [
-            key
-            for key, entry in self._entries.items()
-            if entry["seen_at"] < cutoff
-        ]
-        for key in doomed:
-            del self._entries[key]
-        return len(doomed)
+        with self._lock:
+            doomed = [
+                key
+                for key, entry in self._entries.items()
+                if entry["seen_at"] < cutoff
+            ]
+            for key in doomed:
+                del self._entries[key]
+            return len(doomed)
 
     def to_dict(self):
         """Serialize to a plain JSON-serializable dict."""
