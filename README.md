@@ -50,6 +50,8 @@ Scope: up to $50 in electronics. Session: 1 hour.
 15. Gate evaluation (default corpus): legitimate 2500/2500 accepted, policy 650/650 rejected, attacks 1850/1950 caught (100 missed: attack_replay_in_window)
 16. Gate evaluation with replay protection: attacks 1950/1950 caught (0 missed)
 16. Replay protection (presentation demo-order-1): first spend ACCEPTED (allowed), replay REJECTED (replay)
+17. Shared state (two processes, one file): first spend ACCEPTED (allowed), replay in other process REJECTED (replay)
+17. Shared state: revocation in one process seen in the other: REJECTED (revoked)
 ```
 
 Run the tests with:
@@ -484,7 +486,50 @@ processes that do not share a store do not share replay state, so a
 replay aimed at a different process than the original presentation
 still passes. A real deployment needs one shared store, and entries
 must live at least as long as the credential they guard can still be
-presented.
+presented. The next section is that shared store.
+
+## Shared persistent state
+
+`kya/shared.py` adds file-backed versions of both stores for
+multi-process deployments. `FileRevocationList` and
+`FileReplayStore` behave exactly like `RevocationList` and
+`ReplayStore`, with the same methods and the same fail-closed
+validation, but every read reloads the state from a JSON file and
+every change rewrites it, so processes that point at the same path
+agree with each other and the state survives a restart.
+
+```python
+from kya import FileReplayStore, FileRevocationList, verify_credential
+
+revocations = FileRevocationList("state/revocations.json")
+replay = FileReplayStore("state/replay.json")
+# In another process, the same paths see the same state:
+other_revocations = FileRevocationList("state/revocations.json")
+revocations.revoke_credential(credential)
+ok, reason = verify_credential(
+    public_key, credential, revoked_ids=other_revocations
+)  # (False, "revoked")
+```
+
+Agreement rests on three rules. Each operation holds an exclusive
+advisory lock on a sibling `.lock` file for its whole reload, change,
+write cycle, so concurrent writers cannot lose each other's updates.
+Writes are atomic: new state goes to a temporary file in the same
+directory and replaces the old file, so no reader sees a half-written
+file and a crash leaves the previous state intact. And a state file
+that exists but is damaged raises `ValueError` instead of starting
+empty, because starting empty would silently un-revoke credentials
+and forget spent presentations. A missing file is the only empty
+start, and it is created on the first change. The file format is
+exactly the in-memory stores' JSON format, so state moves freely
+between the two. The demo service takes the paths directly:
+`create_app(public_key, revocations_path=..., replay_store_path=...)`
+builds the file-backed stores for you, and refuses to combine a path
+with a store instance for the same state.
+
+One honest limit remains: the lock is an advisory file lock on one
+machine's filesystem. Stores on different machines still need a real
+shared backend, which this toolkit does not pretend to provide.
 
 ## FastAPI demo service
 
@@ -619,12 +664,16 @@ available over HTTP the same way benchmark scoring already is.
 Replay protection shipped 2026-11-19: a `ReplayStore` keyed by
 (credential id, presentation id) closes the in-window replay gap,
 taking the default corpus from 100 missed attacks to none when the
-evaluation runs with `replay_protection=True`. The next loop has one
-uncommitted candidate left: shared, persistent state for
-multi-process deployments, so revocation and replay stores survive
-restarts and agree across processes instead of living in one
-process's memory. Production
-authentication, persistent revocation state and merchant integration remain outside
+evaluation runs with `replay_protection=True`. Shared persistent
+state shipped 2026-11-21: `FileRevocationList` and
+`FileReplayStore` keep revocation and replay state in a shared JSON
+file with advisory locking and atomic writes, so the stores survive
+restarts and agree across processes on one machine, and the demo
+service can be built straight from the file paths. The next loop
+has no committed candidate yet: a shared backend for stores on
+different machines is the natural follow-on, and it stays
+uncommitted until it is scoped. Production
+authentication and merchant integration remain outside
 this demo's guarantees.
 
 ## License

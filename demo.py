@@ -343,6 +343,48 @@ def main():
         "spend %s, replay %s" % (first, verdict(ok, reason))
     )
 
+    # Shared persistent state: two file-backed store pairs pointing
+    # at the same files act like two merchant processes. A revocation
+    # and a spent presentation recorded through the first pair are
+    # visible to the second pair, and both survive a restart because
+    # the state lives in the files, not in either process.
+    import os
+    import tempfile
+
+    from kya import FileReplayStore, FileRevocationList
+
+    with tempfile.TemporaryDirectory() as state_dir:
+        rev_path = os.path.join(state_dir, "revocations.json")
+        replay_path = os.path.join(state_dir, "replay.json")
+        proc_a_revocations = FileRevocationList(rev_path)
+        proc_b_revocations = FileRevocationList(rev_path)
+        proc_a_replay = FileReplayStore(replay_path)
+        proc_b_replay = FileReplayStore(replay_path)
+
+        shared = bench_credential("agent-shared-demo")
+        ok, reason = authorize_purchase(
+            public_key, shared, 30.0, "electronics",
+            replay_store=proc_a_replay, presentation_id="shared-order-1",
+        )
+        first = verdict(ok, reason)
+        ok, reason = authorize_purchase(
+            public_key, shared, 30.0, "electronics",
+            replay_store=proc_b_replay, presentation_id="shared-order-1",
+        )
+        print(
+            "17. Shared state (two processes, one file): first spend "
+            "%s, replay in other process %s" % (first, verdict(ok, reason))
+        )
+
+        proc_a_revocations.revoke_credential(shared, reason="reported stolen")
+        ok, reason = verify_credential(
+            public_key, shared, revoked_ids=proc_b_revocations
+        )
+        print(
+            "17. Shared state: revocation in one process seen in the "
+            "other: %s" % verdict(ok, reason)
+        )
+
 
 if __name__ == "__main__":
     main()

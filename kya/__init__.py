@@ -88,6 +88,7 @@ from .replay import (
     ReplayStore,
 )
 from .revocation import REVOCATION_LIST_VERSION, RevocationList
+from .shared import FileReplayStore, FileRevocationList
 
 __all__ = [
     "AGENTRISK_DATASET_URL",
@@ -103,6 +104,8 @@ __all__ = [
     "DEFAULT_COUNTS",
     "DEFAULT_SEED",
     "EVALUATION_VERSION",
+    "FileReplayStore",
+    "FileRevocationList",
     "LEGIT_CLASSES",
     "POLICY_CLASSES",
     "REASON_ALLOWED",

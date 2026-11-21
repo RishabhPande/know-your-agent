@@ -30,14 +30,26 @@ identity: scoped, session-limited, and revocable.
    caught only by an external anchor passed as expected_last_hash.
 
 ## Planned next (not yet shipped)
-- Backlog complete as of 2026-11-09 (see below), and replay
-  protection shipped 2026-11-19 (see below). Candidate for the
-  next loop, uncommitted: shared, persistent state for
-  multi-process deployments, so the revocation and replay stores
-  survive restarts and agree across processes instead of living
-  in one process's memory.
+- Backlog complete as of 2026-11-09 (see below), replay
+  protection shipped 2026-11-19, and shared persistent state
+  shipped 2026-11-21 (see below). No candidate is committed for
+  the next loop yet; a shared backend for stores on different
+  machines is the natural follow-on and stays uncommitted until
+  it is scoped.
 
 ## Shipped since v0.1
+- Shared persistent state (DONE 2026-11-21: kya/shared.py,
+  FileRevocationList and FileReplayStore with the in-memory
+  stores' exact behaviour and JSON format; every read reloads
+  from the file and every mutation rewrites it atomically under
+  an exclusive advisory lock on a sibling .lock file, so
+  processes sharing a path agree and state survives restarts; a
+  damaged file raises ValueError instead of starting empty, a
+  missing file starts empty; create_app gains revocations_path
+  and replay_store_path, which cannot be combined with a store
+  instance for the same state; demo step 17; 19 new tests, 297
+  total green. Honest limit: the advisory lock covers one
+  machine's filesystem, not stores on different machines).
 - Replay protection (DONE 2026-11-19: kya/replay.py, ReplayStore
   keyed by (credential_id, presentation_id) with strict JSON
   persistence in the RevocationList pattern and a caller-cutoff
@@ -203,6 +215,12 @@ identity: scoped, session-limited, and revocable.
     other verdict changed; presentation_id on POST /checkout and
     POST /checkout-chain and replay_protection on POST /evaluate;
     demo step 16; 20 new tests, 275 total green).
+14. Shared persistent state (DONE 2026-11-21: kya/shared.py,
+    FileRevocationList and FileReplayStore, reload on every read
+    and atomic locked rewrite on every mutation, in-memory JSON
+    format on disk, fail closed on a damaged file;
+    revocations_path and replay_store_path on create_app; demo
+    step 17; 19 new tests, 297 total green).
 
 ## Naming and license (suggested)
 - Repo: `know-your-agent` (public)

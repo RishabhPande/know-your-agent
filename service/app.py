@@ -80,6 +80,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from kya import (
+    FileReplayStore,
+    FileRevocationList,
     ReplayStore,
     RevocationList,
     authorize_purchase,
@@ -211,7 +213,7 @@ def _replay_kwargs(app, presentation_id):
 
 def create_app(
     public_key, *, revocations=None, audit=None, audit_public_key=None,
-    replay_store=None,
+    replay_store=None, revocations_path=None, replay_store_path=None,
 ):
     """Build the demo service app for one trusted issuer public key.
 
@@ -232,17 +234,34 @@ def create_app(
             service has already authorized. A fresh empty store is
             created when omitted, so each app owns its replay state
             unless the caller shares one, the same rule as revocations.
+        revocations_path: path to a shared JSON file to back the
+            revocation list with ``FileRevocationList``, so several
+            service processes agree on revocations and they survive
+            restarts. Cannot be combined with ``revocations``.
+        replay_store_path: same idea for replay state, backed by
+            ``FileReplayStore``. Cannot be combined with
+            ``replay_store``.
 
     Returns a FastAPI app. The app holds no private key material.
     """
+    if revocations is not None and revocations_path is not None:
+        raise ValueError("revocations and revocations_path cannot be combined")
+    if replay_store is not None and replay_store_path is not None:
+        raise ValueError("replay_store and replay_store_path cannot be combined")
     app = FastAPI(title="Know Your Agent demo service")
     app.state.public_key = public_key
-    app.state.revocations = (
-        revocations if revocations is not None else RevocationList()
-    )
-    app.state.replay_store = (
-        replay_store if replay_store is not None else ReplayStore()
-    )
+    if revocations_path is not None:
+        app.state.revocations = FileRevocationList(revocations_path)
+    else:
+        app.state.revocations = (
+            revocations if revocations is not None else RevocationList()
+        )
+    if replay_store_path is not None:
+        app.state.replay_store = FileReplayStore(replay_store_path)
+    else:
+        app.state.replay_store = (
+            replay_store if replay_store is not None else ReplayStore()
+        )
     app.state.audit = audit
     app.state.audit_public_key = (
         audit_public_key if audit_public_key is not None else public_key
