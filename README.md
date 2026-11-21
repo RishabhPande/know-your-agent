@@ -476,6 +476,9 @@ service, `POST /checkout` and `POST /checkout-chain` accept an
 optional `presentation_id`, and `POST /evaluate` accepts
 `replay_protection`.
 
+A shared store serializes its check-and-record operation across threads
+in one process, so simultaneous repeats have only one winner.
+
 One honest limit: the store only knows what it has seen. Two merchant
 processes that do not share a store do not share replay state, so a
 replay aimed at a different process than the original presentation
