@@ -1,4 +1,4 @@
-"""Know Your Agent: the public API surface (v0.1 + delegation + revocation + audit + benchmark + agentrisk + corpus + evaluation + replay protection)."""
+"""Know Your Agent: the public API surface (v0.1 + delegation + revocation + audit + benchmark + agentrisk + corpus + evaluation + replay protection + shared and remote state)."""
 
 from .agentrisk import (
     AGENTRISK_DATASET_URL,
@@ -87,6 +87,13 @@ from .replay import (
     REPLAY_STORE_VERSION,
     ReplayStore,
 )
+from .remote import (
+    REMOTE_STATE_VERSION,
+    InProcessTransport,
+    RemoteReplayStore,
+    RemoteRevocationList,
+    RemoteStateError,
+)
 from .revocation import REVOCATION_LIST_VERSION, RevocationList
 from .shared import FileReplayStore, FileRevocationList
 
@@ -106,6 +113,11 @@ __all__ = [
     "EVALUATION_VERSION",
     "FileReplayStore",
     "FileRevocationList",
+    "InProcessTransport",
+    "REMOTE_STATE_VERSION",
+    "RemoteReplayStore",
+    "RemoteRevocationList",
+    "RemoteStateError",
     "LEGIT_CLASSES",
     "POLICY_CLASSES",
     "REASON_ALLOWED",

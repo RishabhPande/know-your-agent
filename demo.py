@@ -385,6 +385,45 @@ def main():
             "other: %s" % verdict(ok, reason)
         )
 
+    # Cross-machine shared state: two remote store pairs talking to
+    # one backend (an in-process transport stands in for the HTTP
+    # state service here; a real deployment points the same classes
+    # at the demo service base URL). A presentation spent through
+    # one machine's remote store is a replay on the other machine,
+    # and a revocation made on one machine is enforced on the other,
+    # because neither machine keeps its own copy of the state.
+    from kya import InProcessTransport, RemoteReplayStore, RemoteRevocationList
+
+    backend = InProcessTransport()
+    machine_a_revocations = RemoteRevocationList(transport=backend)
+    machine_b_revocations = RemoteRevocationList(transport=backend)
+    machine_a_replay = RemoteReplayStore(transport=backend)
+    machine_b_replay = RemoteReplayStore(transport=backend)
+
+    remote = bench_credential("agent-remote-demo")
+    ok, reason = authorize_purchase(
+        public_key, remote, 30.0, "electronics",
+        replay_store=machine_a_replay, presentation_id="remote-order-1",
+    )
+    first = verdict(ok, reason)
+    ok, reason = authorize_purchase(
+        public_key, remote, 30.0, "electronics",
+        replay_store=machine_b_replay, presentation_id="remote-order-1",
+    )
+    print(
+        "18. Remote state (two machines, one backend): first spend "
+        "%s, replay on other machine %s" % (first, verdict(ok, reason))
+    )
+
+    machine_a_revocations.revoke_credential(remote, reason="reported stolen")
+    ok, reason = verify_credential(
+        public_key, remote, revoked_ids=machine_b_revocations
+    )
+    print(
+        "18. Remote state: revocation on one machine seen on the "
+        "other: %s" % verdict(ok, reason)
+    )
+
 
 if __name__ == "__main__":
     main()

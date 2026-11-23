@@ -23,6 +23,14 @@ Endpoints:
   also records the revocation in the audit log when one is configured).
 - ``GET /audit``: the audit log entries plus their verification result,
   when an audit log is configured; 404 otherwise.
+- ``GET/POST /state/revocations``, ``GET /state/revocations/<id>``,
+  ``GET /state/replay``, ``POST /state/replay/check-and-record``,
+  ``POST /state/replay/lookup``, ``POST /state/replay/prune``: this
+  service's revocation list and replay store served as the shared
+  backend that ``RemoteRevocationList`` and ``RemoteReplayStore`` in
+  ``kya/remote.py`` check against, so machines that cannot share a
+  file can still share one state. Unauthenticated, like ``/revoke``:
+  trusted network or authenticating proxy only.
 - ``POST /benchmark``: score a fraud model against KYA-labeled records
   (``{"records": [...], "threshold": 0.5}``), returning the confusion
   matrix, precision, recall, F1, accuracy, and AUC. A malformed record
@@ -140,6 +148,27 @@ class BenchmarkAgentRiskRequest(BaseModel):
     score_column: str | None = None
     per_seed: bool = False
     confidence: float = 0.95
+
+
+class StateRevokeRequest(BaseModel):
+    credential_id: str
+    reason: str | None = None
+    revoked_at: str | None = None
+
+
+class StateCheckAndRecordRequest(BaseModel):
+    credential_id: str
+    presentation_id: str
+    seen_at: str | None = None
+
+
+class StateLookupRequest(BaseModel):
+    credential_id: str
+    presentation_id: str
+
+
+class StatePruneRequest(BaseModel):
+    seen_before: str
 
 
 class EvaluateRequest(BaseModel):
@@ -385,6 +414,72 @@ def create_app(
             status_code=422,
             detail="revoke needs a credential or a credential_id",
         )
+
+    # -- shared state backend (kya/remote.py speaks this contract) --
+    # These endpoints expose this service's own revocation list and
+    # replay store as the one shared state other machines check
+    # against. They carry no authentication, like /revoke above:
+    # anyone who can reach this service can read or change the state,
+    # so the service belongs on a trusted network or behind an
+    # authenticating proxy. That limit is stated, not hidden.
+
+    @app.get("/state/revocations")
+    def state_revocations():
+        return app.state.revocations.to_dict()
+
+    @app.get("/state/revocations/{credential_id}")
+    def state_revocation_lookup(credential_id: str):
+        entry = app.state.revocations.get(credential_id)
+        return {"revoked": entry is not None, "entry": entry}
+
+    @app.post("/state/revocations")
+    def state_revoke(request: StateRevokeRequest):
+        try:
+            newly = app.state.revocations.revoke(
+                request.credential_id,
+                reason=request.reason,
+                revoked_at=request.revoked_at,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {
+            "revoked": newly,
+            "entry": app.state.revocations.get(request.credential_id),
+        }
+
+    @app.get("/state/replay")
+    def state_replay():
+        return app.state.replay_store.to_dict()
+
+    @app.post("/state/replay/check-and-record")
+    def state_check_and_record(request: StateCheckAndRecordRequest):
+        try:
+            is_new = app.state.replay_store.check_and_record(
+                request.credential_id,
+                request.presentation_id,
+                seen_at=request.seen_at,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {"is_new": is_new}
+
+    @app.post("/state/replay/lookup")
+    def state_replay_lookup(request: StateLookupRequest):
+        return {
+            "seen": app.state.replay_store.is_seen(
+                request.credential_id, request.presentation_id
+            )
+        }
+
+    @app.post("/state/replay/prune")
+    def state_replay_prune(request: StatePruneRequest):
+        try:
+            pruned = app.state.replay_store.prune(
+                seen_before=request.seen_before
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {"pruned": pruned}
 
     @app.get("/audit")
     def audit_entries():

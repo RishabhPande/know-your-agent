@@ -31,13 +31,32 @@ identity: scoped, session-limited, and revocable.
 
 ## Planned next (not yet shipped)
 - Backlog complete as of 2026-11-09 (see below), replay
-  protection shipped 2026-11-19, and shared persistent state
-  shipped 2026-11-21 (see below). No candidate is committed for
-  the next loop yet; a shared backend for stores on different
-  machines is the natural follow-on and stays uncommitted until
-  it is scoped.
+  protection shipped 2026-11-19, shared persistent state shipped
+  2026-11-21, and remote shared state shipped 2026-11-23 (see
+  below). No candidate is committed for the next loop yet;
+  authentication for the state endpoints is the natural follow-on
+  and stays uncommitted until it is scoped.
 
 ## Shipped since v0.1
+- Remote shared state (DONE 2026-11-23: kya/remote.py,
+  RemoteRevocationList and RemoteReplayStore with the local
+  stores' exact behaviour; every read asks a shared backend and
+  every mutation is performed by it, over HTTP via urllib by
+  default or through a pluggable transport; check-and-record is
+  one backend call so the check and record stay atomic where they
+  are performed; the demo service serves the contract from its own
+  revocation list and replay store at GET /state/revocations,
+  GET /state/revocations/<id>, POST /state/revocations,
+  GET /state/replay, POST /state/replay/check-and-record,
+  POST /state/replay/lookup, and POST /state/replay/prune;
+  InProcessTransport serves the same contract from local stores
+  for the demo and tests; an unreachable backend, an error status,
+  or a malformed answer raises RemoteStateError instead of falling
+  back to a local guess, and backend validation rejections surface
+  as ValueError; demo step 18; 17 new tests, 314 total green.
+  Honest limit: the state endpoints carry no authentication, so
+  the backend belongs on a trusted network or behind an
+  authenticating proxy).
 - Shared persistent state (DONE 2026-11-21: kya/shared.py,
   FileRevocationList and FileReplayStore with the in-memory
   stores' exact behaviour and JSON format; every read reloads
@@ -221,6 +240,14 @@ identity: scoped, session-limited, and revocable.
     format on disk, fail closed on a damaged file;
     revocations_path and replay_store_path on create_app; demo
     step 17; 19 new tests, 297 total green).
+15. Remote shared state (DONE 2026-11-23: kya/remote.py,
+    RemoteRevocationList and RemoteReplayStore backed by one
+    shared backend over HTTP, /state/... endpoints on the demo
+    service serving its own stores, InProcessTransport for the
+    same contract without a network, fail closed with
+    RemoteStateError on an unreachable or malformed backend and
+    no local fallback; demo step 18; 17 new tests, 314 total
+    green).
 
 ## Naming and license (suggested)
 - Repo: `know-your-agent` (public)

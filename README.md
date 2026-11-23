@@ -52,6 +52,8 @@ Scope: up to $50 in electronics. Session: 1 hour.
 16. Replay protection (presentation demo-order-1): first spend ACCEPTED (allowed), replay REJECTED (replay)
 17. Shared state (two processes, one file): first spend ACCEPTED (allowed), replay in other process REJECTED (replay)
 17. Shared state: revocation in one process seen in the other: REJECTED (revoked)
+18. Remote state (two machines, one backend): first spend ACCEPTED (allowed), replay on other machine REJECTED (replay)
+18. Remote state: revocation on one machine seen on the other: REJECTED (revoked)
 ```
 
 Run the tests with:
@@ -528,8 +530,49 @@ builds the file-backed stores for you, and refuses to combine a path
 with a store instance for the same state.
 
 One honest limit remains: the lock is an advisory file lock on one
-machine's filesystem. Stores on different machines still need a real
-shared backend, which this toolkit does not pretend to provide.
+machine's filesystem. Stores on different machines need a shared
+backend instead, which is the next section.
+
+## Remote shared state
+
+`kya/remote.py` adds backend-backed versions of both stores for
+deployments spread across machines. `RemoteRevocationList` and
+`RemoteReplayStore` behave exactly like `RevocationList` and
+`ReplayStore`, but every read asks a shared backend and every change
+is made by that backend, so machines that share no filesystem still
+agree on one revocation and replay state.
+
+```python
+from kya import RemoteReplayStore, RemoteRevocationList, verify_credential
+
+revocations = RemoteRevocationList("http://state.internal:8000")
+replay = RemoteReplayStore("http://state.internal:8000")
+# On another machine, the same backend sees the same state:
+other_revocations = RemoteRevocationList("http://state.internal:8000")
+revocations.revoke_credential(credential)
+ok, reason = verify_credential(
+    public_key, credential, revoked_ids=other_revocations
+)  # (False, "revoked")
+```
+
+The backend is the demo service below: its `/state/...` endpoints
+serve the same revocation list and replay store the service itself
+authorizes against, and `check-and-record` runs as one backend call
+so two machines racing the same presentation cannot both be told it
+is new. A remote store holds no copy of its own and never falls back
+to one: an unreachable backend, an error status, or a malformed
+answer raises `RemoteStateError` instead of guessing "not revoked"
+or "not seen". Responses are parsed through the local stores' own
+strict validation. The transport is pluggable (a callable taking
+method, path, and payload), and `InProcessTransport` serves the same
+contract from local stores, which is what the demo and the library
+tests use in place of a network.
+
+One honest limit, stated plainly: the state endpoints carry no
+authentication, like the service's `/revoke` endpoint. Anyone who
+can reach the backend can read the revocation list, revoke a
+credential, or burn a presentation id, so a real deployment belongs
+on a trusted network or behind an authenticating proxy.
 
 ## FastAPI demo service
 
@@ -581,7 +624,11 @@ so an empty list measures what revocation is worth on the same
 corpus; an optional `replay_protection` flag judges the corpus with
 a fresh replay store, which catches the in-window replay class; a
 malformed corpus, an unknown class in `counts`, or a
-conflicting request is a 422, never a partial result).
+conflicting request is a 422, never a partial result), and the
+`/state/...` endpoints (the service's revocation list and replay
+store served as the shared backend for `RemoteRevocationList` and
+`RemoteReplayStore` on other machines; see Remote shared state
+above).
 `POST /checkout` and `POST /checkout-chain` accept an optional
 `presentation_id`: when one is sent, the app's replay store is
 consulted and a repeat spend of the same id under the same
@@ -669,11 +716,16 @@ state shipped 2026-11-21: `FileRevocationList` and
 `FileReplayStore` keep revocation and replay state in a shared JSON
 file with advisory locking and atomic writes, so the stores survive
 restarts and agree across processes on one machine, and the demo
-service can be built straight from the file paths. The next loop
-has no committed candidate yet: a shared backend for stores on
-different machines is the natural follow-on, and it stays
-uncommitted until it is scoped. Production
-authentication and merchant integration remain outside
+service can be built straight from the file paths. Remote shared
+state shipped 2026-11-23: `RemoteRevocationList` and
+`RemoteReplayStore` in `kya/remote.py` keep revocation and replay
+state on one backend reached over HTTP (the demo service's
+`/state/...` endpoints), so stores on different machines agree, and
+an unreachable or malformed backend raises `RemoteStateError`
+instead of falling back to a local guess. The next loop has no
+committed candidate yet: authentication for the state endpoints is
+the natural follow-on, and it stays uncommitted until it is scoped.
+Production authentication and merchant integration remain outside
 this demo's guarantees.
 
 ## License
