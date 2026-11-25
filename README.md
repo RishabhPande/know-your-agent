@@ -54,6 +54,8 @@ Scope: up to $50 in electronics. Session: 1 hour.
 17. Shared state: revocation in one process seen in the other: REJECTED (revoked)
 18. Remote state (two machines, one backend): first spend ACCEPTED (allowed), replay on other machine REJECTED (replay)
 18. Remote state: revocation on one machine seen on the other: REJECTED (revoked)
+19. Authenticated state (correct token): revocation read back: REJECTED (revoked)
+19. Authenticated state (no token): REJECTED (unauthenticated)
 ```
 
 Run the tests with:
@@ -568,11 +570,24 @@ method, path, and payload), and `InProcessTransport` serves the same
 contract from local stores, which is what the demo and the library
 tests use in place of a network.
 
-One honest limit, stated plainly: the state endpoints carry no
-authentication, like the service's `/revoke` endpoint. Anyone who
-can reach the backend can read the revocation list, revoke a
-credential, or burn a presentation id, so a real deployment belongs
-on a trusted network or behind an authenticating proxy.
+The state endpoints can be locked with one shared bearer token:
+build the service with `create_app(public_key, state_token="...")`
+and each remote store with the matching `auth_token="..."`, and
+every state request must carry `Authorization: Bearer <token>`. A
+missing or wrong token is a 401 from the service and a
+`RemoteStateError` on the client, never an unauthenticated retry,
+and a custom transport that cannot carry headers fails closed
+instead of sending the request bare. `InProcessTransport` takes
+the same `auth_token`. With no token configured, the endpoints
+stay open, exactly as before.
+
+Two honest limits, stated plainly. One shared token is one shared
+identity: it proves a caller knows the secret, not which machine
+it is, and it encrypts nothing, so the token belongs on a
+TLS-protected or trusted network. And the token covers only the
+state contract: the service's other endpoints, like `/revoke`,
+stay unauthenticated, because they are a local demo surface, not
+a deployment API.
 
 ## FastAPI demo service
 
@@ -722,11 +737,15 @@ state shipped 2026-11-23: `RemoteRevocationList` and
 state on one backend reached over HTTP (the demo service's
 `/state/...` endpoints), so stores on different machines agree, and
 an unreachable or malformed backend raises `RemoteStateError`
-instead of falling back to a local guess. The next loop has no
-committed candidate yet: authentication for the state endpoints is
-the natural follow-on, and it stays uncommitted until it is scoped.
-Production authentication and merchant integration remain outside
-this demo's guarantees.
+instead of falling back to a local guess. State endpoint
+authentication shipped 2026-11-25: one optional shared bearer
+token guards the `/state/...` endpoints on the service
+(`state_token` on `create_app`) and is presented by the remote
+stores (`auth_token`), with a 401 on the service and a
+`RemoteStateError` on the client when it is missing or wrong.
+The next loop has no committed candidate yet. Production
+authentication and merchant integration remain outside this
+demo's guarantees.
 
 ## License
 

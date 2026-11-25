@@ -424,6 +424,37 @@ def main():
         "other: %s" % verdict(ok, reason)
     )
 
+    # State endpoint authentication: the same backend pattern, now
+    # behind a shared bearer token. A machine carrying the token
+    # reads and writes as before; a machine without it cannot even
+    # build its store, because the construction check is rejected
+    # and the client fails closed instead of guessing.
+    from kya import RemoteStateError
+
+    guarded_backend = InProcessTransport(auth_token="demo-state-token")
+    guarded_revocations = RemoteRevocationList(
+        transport=guarded_backend, auth_token="demo-state-token"
+    )
+    guarded_revocations.revoke_credential(
+        remote, reason="reported stolen"
+    )
+    ok, reason = verify_credential(
+        public_key, remote, revoked_ids=guarded_revocations
+    )
+    print(
+        "19. Authenticated state (correct token): revocation read "
+        "back: %s" % verdict(ok, reason)
+    )
+
+    try:
+        RemoteRevocationList(transport=guarded_backend)
+        print("19. Authenticated state (no token): ACCEPTED (ok)")
+    except RemoteStateError:
+        print(
+            "19. Authenticated state (no token): REJECTED "
+            "(unauthenticated)"
+        )
+
 
 if __name__ == "__main__":
     main()

@@ -32,12 +32,27 @@ identity: scoped, session-limited, and revocable.
 ## Planned next (not yet shipped)
 - Backlog complete as of 2026-11-09 (see below), replay
   protection shipped 2026-11-19, shared persistent state shipped
-  2026-11-21, and remote shared state shipped 2026-11-23 (see
-  below). No candidate is committed for the next loop yet;
-  authentication for the state endpoints is the natural follow-on
-  and stays uncommitted until it is scoped.
+  2026-11-21, remote shared state shipped 2026-11-23, and state
+  endpoint authentication shipped 2026-11-25 (see below). No
+  candidate is committed for the next loop yet.
 
 ## Shipped since v0.1
+- State endpoint authentication (DONE 2026-11-25: one optional
+  shared bearer token for the state contract; create_app gains
+  state_token and every /state/... endpoint answers 401 without
+  the exact Authorization: Bearer header, compared with
+  secrets.compare_digest, while other endpoints are unaffected
+  and no token configured keeps the old open behaviour;
+  RemoteRevocationList, RemoteReplayStore, and InProcessTransport
+  gain auth_token, sent as the Authorization header by the urllib
+  transport or passed to a pluggable transport as a fourth
+  headers argument; a 401 or 403 from the backend raises
+  RemoteStateError, and a transport that cannot carry headers
+  fails closed instead of sending the request unauthenticated;
+  demo step 19. Honest limits: one shared token is one shared
+  identity, not per-machine identity, and it encrypts nothing, so
+  it belongs on a TLS-protected or trusted network; the service's
+  other endpoints, including /revoke, stay unauthenticated).
 - Remote shared state (DONE 2026-11-23: kya/remote.py,
   RemoteRevocationList and RemoteReplayStore with the local
   stores' exact behaviour; every read asks a shared backend and
@@ -54,9 +69,10 @@ identity: scoped, session-limited, and revocable.
   or a malformed answer raises RemoteStateError instead of falling
   back to a local guess, and backend validation rejections surface
   as ValueError; demo step 18; 17 new tests, 314 total green.
-  Honest limit: the state endpoints carry no authentication, so
-  the backend belongs on a trusted network or behind an
-  authenticating proxy).
+  Honest limit at the time: the state endpoints carried no
+  authentication, so the backend belonged on a trusted network
+  or behind an authenticating proxy; the optional bearer token
+  above shipped 2026-11-25).
 - Shared persistent state (DONE 2026-11-21: kya/shared.py,
   FileRevocationList and FileReplayStore with the in-memory
   stores' exact behaviour and JSON format; every read reloads
@@ -248,6 +264,13 @@ identity: scoped, session-limited, and revocable.
     RemoteStateError on an unreachable or malformed backend and
     no local fallback; demo step 18; 17 new tests, 314 total
     green).
+16. State endpoint authentication (DONE 2026-11-25: optional
+    shared bearer token on the state contract, state_token on
+    create_app guarding every /state/... endpoint with a 401,
+    auth_token on the remote stores and InProcessTransport,
+    RemoteStateError on a rejected or unpresentable token, no
+    behaviour change with no token configured; demo step 19;
+    15 new tests, 329 total green).
 
 ## Naming and license (suggested)
 - Repo: `know-your-agent` (public)

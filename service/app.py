@@ -29,8 +29,11 @@ Endpoints:
   service's revocation list and replay store served as the shared
   backend that ``RemoteRevocationList`` and ``RemoteReplayStore`` in
   ``kya/remote.py`` check against, so machines that cannot share a
-  file can still share one state. Unauthenticated, like ``/revoke``:
-  trusted network or authenticating proxy only.
+  file can still share one state. When ``create_app()`` is given a
+  ``state_token``, every one of these endpoints requires an
+  ``Authorization: Bearer <token>`` header and answers 401 without
+  it; with no token configured they stay open, like ``/revoke``,
+  for trusted networks only.
 - ``POST /benchmark``: score a fraud model against KYA-labeled records
   (``{"records": [...], "threshold": 0.5}``), returning the confusion
   matrix, precision, recall, F1, accuracy, and AUC. A malformed record
@@ -84,7 +87,9 @@ in memory and discarded on exit; never point this service at a real
 issuer key and then reuse the demo credential for real authorization.
 """
 
-from fastapi import FastAPI, HTTPException
+import secrets
+
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
 from kya import (
@@ -243,6 +248,7 @@ def _replay_kwargs(app, presentation_id):
 def create_app(
     public_key, *, revocations=None, audit=None, audit_public_key=None,
     replay_store=None, revocations_path=None, replay_store_path=None,
+    state_token=None,
 ):
     """Build the demo service app for one trusted issuer public key.
 
@@ -270,6 +276,14 @@ def create_app(
         replay_store_path: same idea for replay state, backed by
             ``FileReplayStore``. Cannot be combined with
             ``replay_store``.
+        state_token: an optional shared bearer token for the
+            ``/state/...`` backend endpoints. When set, every state
+            request must carry ``Authorization: Bearer <token>`` and
+            a missing or wrong token is a 401; the remote stores in
+            ``kya/remote.py`` send it when built with the matching
+            ``auth_token``. When omitted, the state endpoints stay
+            open, which is only safe on a trusted network. The other
+            endpoints are not affected either way.
 
     Returns a FastAPI app. The app holds no private key material.
     """
@@ -277,6 +291,10 @@ def create_app(
         raise ValueError("revocations and revocations_path cannot be combined")
     if replay_store is not None and replay_store_path is not None:
         raise ValueError("replay_store and replay_store_path cannot be combined")
+    if state_token is not None and (
+        not isinstance(state_token, str) or not state_token
+    ):
+        raise ValueError("state_token must be a non-empty string or None")
     app = FastAPI(title="Know Your Agent demo service")
     app.state.public_key = public_key
     if revocations_path is not None:
@@ -295,6 +313,32 @@ def create_app(
     app.state.audit_public_key = (
         audit_public_key if audit_public_key is not None else public_key
     )
+    app.state.state_token = state_token
+
+    def require_state_token(
+        authorization: str | None = Header(default=None),
+    ):
+        """Guard for the /state/... endpoints, active only with a token.
+
+        With no state_token configured the guard passes everything,
+        preserving the open trusted-network behaviour. With one, the
+        request must carry the exact bearer token; the comparison is
+        constant-time, and a failure is a 401, never a partial answer.
+        """
+        token = app.state.state_token
+        if token is None:
+            return
+        expected = "Bearer " + token
+        if authorization is None or not secrets.compare_digest(
+            authorization, expected
+        ):
+            raise HTTPException(
+                status_code=401,
+                detail="state endpoints require authentication",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    state_auth = [Depends(require_state_token)]
 
     @app.get("/health")
     def health():
@@ -418,21 +462,22 @@ def create_app(
     # -- shared state backend (kya/remote.py speaks this contract) --
     # These endpoints expose this service's own revocation list and
     # replay store as the one shared state other machines check
-    # against. They carry no authentication, like /revoke above:
-    # anyone who can reach this service can read or change the state,
-    # so the service belongs on a trusted network or behind an
-    # authenticating proxy. That limit is stated, not hidden.
+    # against. When the app was built with a state_token, every one
+    # of them requires that bearer token (require_state_token above);
+    # without a token they are open, like /revoke above, and the
+    # service belongs on a trusted network. That limit is stated,
+    # not hidden.
 
-    @app.get("/state/revocations")
+    @app.get("/state/revocations", dependencies=state_auth)
     def state_revocations():
         return app.state.revocations.to_dict()
 
-    @app.get("/state/revocations/{credential_id}")
+    @app.get("/state/revocations/{credential_id}", dependencies=state_auth)
     def state_revocation_lookup(credential_id: str):
         entry = app.state.revocations.get(credential_id)
         return {"revoked": entry is not None, "entry": entry}
 
-    @app.post("/state/revocations")
+    @app.post("/state/revocations", dependencies=state_auth)
     def state_revoke(request: StateRevokeRequest):
         try:
             newly = app.state.revocations.revoke(
@@ -447,11 +492,11 @@ def create_app(
             "entry": app.state.revocations.get(request.credential_id),
         }
 
-    @app.get("/state/replay")
+    @app.get("/state/replay", dependencies=state_auth)
     def state_replay():
         return app.state.replay_store.to_dict()
 
-    @app.post("/state/replay/check-and-record")
+    @app.post("/state/replay/check-and-record", dependencies=state_auth)
     def state_check_and_record(request: StateCheckAndRecordRequest):
         try:
             is_new = app.state.replay_store.check_and_record(
@@ -463,7 +508,7 @@ def create_app(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return {"is_new": is_new}
 
-    @app.post("/state/replay/lookup")
+    @app.post("/state/replay/lookup", dependencies=state_auth)
     def state_replay_lookup(request: StateLookupRequest):
         return {
             "seen": app.state.replay_store.is_seen(
@@ -471,7 +516,7 @@ def create_app(
             )
         }
 
-    @app.post("/state/replay/prune")
+    @app.post("/state/replay/prune", dependencies=state_auth)
     def state_replay_prune(request: StatePruneRequest):
         try:
             pruned = app.state.replay_store.prune(

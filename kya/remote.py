@@ -61,23 +61,43 @@ Fail-closed rules:
 Transport is pluggable so the contract can be tested without a
 network: a transport is a callable ``(method, path, payload)`` that
 returns ``(status, parsed_json)``, where ``payload`` is a dict or
-None. The default transport speaks HTTP with ``urllib`` to a
-``base_url``. ``InProcessTransport`` runs the same contract against
-local stores in this process; it is what the demo and the library
-tests use to stand in for the backend, and it is also a reasonable
-way to give several in-process consumers one shared state object
-with remote-store semantics.
+None. When a store carries an ``auth_token``, the transport is
+called with a fourth argument, ``headers``, a dict holding the
+``Authorization`` header to send; a transport that cannot accept
+that argument cannot carry authentication, and the store fails
+closed with ``RemoteStateError`` instead of silently sending the
+request unauthenticated. The default transport speaks HTTP with
+``urllib`` to a ``base_url`` and sends the header itself.
+``InProcessTransport`` runs the same contract against local stores
+in this process; it is what the demo and the library tests use to
+stand in for the backend, and it is also a reasonable way to give
+several in-process consumers one shared state object with
+remote-store semantics.
 
-One honest limit, stated plainly: the state endpoints carry no
-authentication. Anyone who can reach the backend can read the
-revocation list, revoke a credential, or burn a presentation id.
-That matches the demo service's existing posture (its ``/revoke``
-endpoint is unauthenticated too), and it means a real deployment
-must put the backend on a trusted network or behind an
-authenticating proxy. This module does not pretend otherwise.
+Authentication is one optional shared bearer token. Pass
+``auth_token`` to a remote store and ``state_token`` to the demo
+service's ``create_app()`` (or ``auth_token`` to an
+``InProcessTransport``) and every state request must carry
+``Authorization: Bearer <token>``; a missing or wrong token is a
+401 from the backend and a ``RemoteStateError`` on the client,
+never a fallback to an unauthenticated retry. The comparison on
+the service side uses ``secrets.compare_digest``. With no token
+configured anywhere, behaviour is exactly what it was before:
+open, for trusted networks only.
+
+Two honest limits, stated plainly. First, one shared token is one
+shared identity: it proves a caller knows the secret, not which
+machine it is, and it does not encrypt anything, so the token
+belongs on a TLS-protected or trusted network, the same advice as
+before, now with a lock on the door as well. Second, this covers
+only the state contract: the demo service's other endpoints,
+including ``/revoke``, stay unauthenticated, because they are a
+local demo surface, not a deployment API.
 """
 
+import inspect
 import json
+import secrets
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -97,12 +117,51 @@ class RemoteStateError(RuntimeError):
     """
 
 
-def _urllib_transport(base_url, timeout):
+def _validate_auth_token(auth_token):
+    if auth_token is None:
+        return None
+    if not isinstance(auth_token, str) or not auth_token:
+        raise ValueError("auth_token must be a non-empty string or None")
+    return auth_token
+
+
+def _auth_headers(auth_token):
+    if auth_token is None:
+        return None
+    return {"Authorization": "Bearer " + auth_token}
+
+
+def _transport_accepts_headers(transport):
+    """True when a transport can be called with a headers argument."""
+    try:
+        parameters = inspect.signature(transport).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    positional = 0
+    for parameter in parameters:
+        if parameter.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        ):
+            return True
+        if parameter.name == "headers":
+            return True
+        if parameter.kind in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            positional += 1
+    return positional >= 4
+
+
+def _urllib_transport(base_url, timeout, auth_token=None):
     base = base_url.rstrip("/")
 
-    def transport(method, path, payload):
+    def transport(method, path, payload, headers=None):
         data = None
         headers = {"Accept": "application/json"}
+        if auth_token is not None:
+            headers["Authorization"] = "Bearer " + auth_token
         if payload is not None:
             data = json.dumps(payload).encode("utf-8")
             headers["Content-Type"] = "application/json"
@@ -140,15 +199,25 @@ class InProcessTransport:
     tests exercise.
     """
 
-    def __init__(self, revocations=None, replay_store=None):
+    def __init__(self, revocations=None, replay_store=None, *, auth_token=None):
         self.revocations = (
             revocations if revocations is not None else RevocationList()
         )
         self.replay_store = (
             replay_store if replay_store is not None else ReplayStore()
         )
+        self._auth_token = _validate_auth_token(auth_token)
 
-    def __call__(self, method, path, payload):
+    def __call__(self, method, path, payload, headers=None):
+        if self._auth_token is not None:
+            expected = "Bearer " + self._auth_token
+            presented = headers.get("Authorization") if isinstance(
+                headers, dict
+            ) else None
+            if not isinstance(presented, str) or not secrets.compare_digest(
+                presented, expected
+            ):
+                return 401, {"detail": "state backend requires authentication"}
         payload = payload or {}
         try:
             if method == "GET" and path == "/state/revocations":
@@ -194,7 +263,7 @@ class InProcessTransport:
         return 404, {"detail": "unknown state path: %s" % path}
 
 
-def _resolve_transport(base_url, transport, timeout):
+def _resolve_transport(base_url, transport, timeout, auth_token=None):
     if transport is not None and base_url is not None:
         raise ValueError("pass either base_url or transport, not both")
     if transport is not None:
@@ -203,19 +272,36 @@ def _resolve_transport(base_url, transport, timeout):
         return transport
     if not isinstance(base_url, str) or not base_url:
         raise ValueError("a non-empty base_url or a transport is required")
-    return _urllib_transport(base_url, timeout)
+    return _urllib_transport(base_url, timeout, auth_token)
 
 
 class _RemoteBase:
     def _request(self, method, path, payload=None):
+        headers = _auth_headers(getattr(self, "_auth_token", None))
         try:
-            status, parsed = self._transport(method, path, payload)
+            if headers is None:
+                status, parsed = self._transport(method, path, payload)
+            elif _transport_accepts_headers(self._transport):
+                status, parsed = self._transport(
+                    method, path, payload, headers
+                )
+            else:
+                raise RemoteStateError(
+                    "transport cannot carry authentication headers; "
+                    "refusing to call the shared state backend "
+                    "unauthenticated"
+                )
         except RemoteStateError:
             raise
         except Exception as exc:
             raise RemoteStateError(
                 "shared state backend call failed: %s" % exc
             ) from exc
+        if status in (401, 403):
+            raise RemoteStateError(
+                "shared state backend rejected authentication "
+                "(status %r) for %s %s" % (status, method, path)
+            )
         if status == 422:
             detail = parsed.get("detail") if isinstance(parsed, dict) else None
             raise ValueError(detail or "shared state backend rejected the request")
@@ -240,8 +326,13 @@ class RemoteRevocationList(_RemoteBase, RevocationList):
     next check here.
     """
 
-    def __init__(self, base_url=None, *, transport=None, timeout=5.0):
-        self._transport = _resolve_transport(base_url, transport, timeout)
+    def __init__(
+        self, base_url=None, *, transport=None, timeout=5.0, auth_token=None
+    ):
+        self._auth_token = _validate_auth_token(auth_token)
+        self._transport = _resolve_transport(
+            base_url, transport, timeout, self._auth_token
+        )
         super().__init__()
         # Fail fast at construction when the backend cannot serve
         # the contract, rather than at the first real check.
@@ -340,8 +431,13 @@ class RemoteReplayStore(_RemoteBase, ReplayStore):
     split across a read here and a write there.
     """
 
-    def __init__(self, base_url=None, *, transport=None, timeout=5.0):
-        self._transport = _resolve_transport(base_url, transport, timeout)
+    def __init__(
+        self, base_url=None, *, transport=None, timeout=5.0, auth_token=None
+    ):
+        self._auth_token = _validate_auth_token(auth_token)
+        self._transport = _resolve_transport(
+            base_url, transport, timeout, self._auth_token
+        )
         super().__init__()
         self._fetch()
 
