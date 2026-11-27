@@ -32,9 +32,10 @@ identity: scoped, session-limited, and revocable.
 ## Planned next (not yet shipped)
 - Backlog complete as of 2026-11-09 (see below), replay
   protection shipped 2026-11-19, shared persistent state shipped
-  2026-11-21, remote shared state shipped 2026-11-23, and state
-  endpoint authentication shipped 2026-11-25 (see below). No
-  candidate is committed for the next loop yet.
+  2026-11-21, remote shared state shipped 2026-11-23, state
+  endpoint authentication shipped 2026-11-25, and per-client
+  state tokens shipped 2026-11-27 (see below). No candidate is
+  committed for the next loop yet.
 
 ## Shipped since v0.1
 - State endpoint authentication (DONE 2026-11-25: one optional
@@ -163,6 +164,21 @@ identity: scoped, session-limited, and revocable.
   with model scores by credential id; POST /benchmark endpoint;
   demo.py step 11; 23 new tests, 111 total green).
 
+- Per-client state tokens (DONE 2026-11-27: state_clients on
+  create_app and auth_clients on InProcessTransport replace the
+  one shared token with named clients, each with its own token
+  and scopes drawn from read and write; read covers GETs and the
+  replay lookup, write covers revoking, check-and-record, and
+  prune; an unknown token is a 401, a known client outside its
+  scopes is a 403 and changes no state, and both surface as
+  RemoteStateError on a remote store; tokens must be unique per
+  client and the client map cannot be combined with the shared
+  token; STATE_SCOPES exported from kya; demo step 20; 15 new
+  tests, 346 total green including the synced demo-output test
+  from PR #12. Honest limits: scopes are coarse (read or write
+  over the whole state contract, not per-store or per-credential),
+  and a token still encrypts nothing).
+
 ## Design rules
 - No real money, no real credentials, no vendor lock-in. Pure Python, minimal deps
   (cryptography only for v0.1). Every check is offline and deterministic.
@@ -271,6 +287,12 @@ identity: scoped, session-limited, and revocable.
     RemoteStateError on a rejected or unpresentable token, no
     behaviour change with no token configured; demo step 19;
     15 new tests, 329 total green).
+17. Per-client state tokens (DONE 2026-11-27: state_clients on
+    create_app and auth_clients on InProcessTransport, named
+    clients with unique tokens and read/write scopes, 401 for an
+    unknown token and 403 for a known client outside its scopes,
+    no state changed by a forbidden call, shared-token and open
+    modes unchanged; demo step 20; 15 new tests, 346 total green).
 
 ## Naming and license (suggested)
 - Repo: `know-your-agent` (public)

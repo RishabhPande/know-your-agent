@@ -85,14 +85,24 @@ the service side uses ``secrets.compare_digest``. With no token
 configured anywhere, behaviour is exactly what it was before:
 open, for trusted networks only.
 
-Two honest limits, stated plainly. First, one shared token is one
-shared identity: it proves a caller knows the secret, not which
-machine it is, and it does not encrypt anything, so the token
-belongs on a TLS-protected or trusted network, the same advice as
-before, now with a lock on the door as well. Second, this covers
-only the state contract: the demo service's other endpoints,
-including ``/revoke``, stay unauthenticated, because they are a
-local demo surface, not a deployment API.
+Per-client tokens close the shared-identity limit of the single
+token. A backend may instead be configured with named clients,
+each with its own token and a set of scopes: ``read`` covers the
+GET endpoints and the replay lookup, ``write`` covers revoking,
+check-and-record, and prune. A caller presents its own token, so
+revoking one machine's token does not disturb the others, and a
+read-only machine cannot revoke or burn a presentation id even
+with a valid token: the backend answers 403, and the client
+raises ``RemoteStateError``, the same fail-closed shape as a 401.
+``InProcessTransport`` accepts the same client map as
+``auth_clients``; the demo service accepts it as ``state_clients``
+on ``create_app()``. The two forms cannot be combined.
+
+Two honest limits remain. First, a token still does not encrypt
+anything, so tokens belong on a TLS-protected or trusted network.
+Second, this covers only the state contract: the demo service's
+other endpoints, including ``/revoke``, stay unauthenticated,
+because they are a local demo surface, not a deployment API.
 """
 
 import inspect
@@ -123,6 +133,89 @@ def _validate_auth_token(auth_token):
     if not isinstance(auth_token, str) or not auth_token:
         raise ValueError("auth_token must be a non-empty string or None")
     return auth_token
+
+
+STATE_SCOPES = frozenset({"read", "write"})
+
+
+def _validate_state_clients(clients, *, argument="state_clients"):
+    """Validate a per-client token map, returning a normalized copy.
+
+    The map names each client and gives it a token and scopes::
+
+        {"machine-a": {"token": "...", "scopes": ["read", "write"]}}
+
+    Client names and tokens must be non-empty strings, tokens must
+    be unique across clients (one token must name one client), and
+    scopes must be a non-empty collection drawn from STATE_SCOPES.
+    Anything else is a ValueError at configuration time, not a
+    surprise at request time.
+    """
+    if clients is None:
+        return None
+    if not isinstance(clients, dict) or not clients:
+        raise ValueError(argument + " must be a non-empty dict or None")
+    normalized = {}
+    seen_tokens = set()
+    for client_id, spec in clients.items():
+        if not isinstance(client_id, str) or not client_id:
+            raise ValueError(argument + " client names must be non-empty strings")
+        if not isinstance(spec, dict):
+            raise ValueError(argument + " entry for %r must be a dict" % client_id)
+        token = spec.get("token")
+        if not isinstance(token, str) or not token:
+            raise ValueError(argument + " token for %r must be a non-empty string" % client_id)
+        if token in seen_tokens:
+            raise ValueError(argument + " tokens must be unique per client")
+        seen_tokens.add(token)
+        scopes = spec.get("scopes")
+        if isinstance(scopes, (str, bytes)) or scopes is None:
+            raise ValueError(argument + " scopes for %r must be a collection of scope names" % client_id)
+        try:
+            scope_set = frozenset(scopes)
+        except TypeError as exc:
+            raise ValueError(argument + " scopes for %r must be a collection" % client_id) from exc
+        if not scope_set or not scope_set <= STATE_SCOPES:
+            raise ValueError(argument + " scopes for %r must be a non-empty subset of read/write" % client_id)
+        normalized[client_id] = {"token": token, "scopes": scope_set}
+    return normalized
+
+
+def _scope_for_state_request(method, path):
+    """The scope a state request needs: read or write.
+
+    GETs and the replay lookup only read state. Revoking,
+    check-and-record, and prune change it, so they need write.
+    """
+    if method == "GET":
+        return "read"
+    if method == "POST" and path == "/state/replay/lookup":
+        return "read"
+    return "write"
+
+
+def _check_state_auth(authorization, *, token=None, clients=None, method=None, path=None):
+    """Check a presented Authorization header against token config.
+
+    Returns (status, client_id): (None, client_id) when the request
+    may proceed, (401, None) when no known token was presented, and
+    (403, client_id) when a known client lacks the needed scope.
+    With a single shared token the client id is "shared".
+    """
+    if token is None and clients is None:
+        return None, None
+    presented = authorization if isinstance(authorization, str) else ""
+    if token is not None:
+        if secrets.compare_digest(presented, "Bearer " + token):
+            return None, "shared"
+        return 401, None
+    for client_id, spec in clients.items():
+        if secrets.compare_digest(presented, "Bearer " + spec["token"]):
+            scope = _scope_for_state_request(method, path) if method else "read"
+            if scope not in spec["scopes"]:
+                return 403, client_id
+            return None, client_id
+    return 401, None
 
 
 def _auth_headers(auth_token):
@@ -199,7 +292,7 @@ class InProcessTransport:
     tests exercise.
     """
 
-    def __init__(self, revocations=None, replay_store=None, *, auth_token=None):
+    def __init__(self, revocations=None, replay_store=None, *, auth_token=None, auth_clients=None):
         self.revocations = (
             revocations if revocations is not None else RevocationList()
         )
@@ -207,17 +300,23 @@ class InProcessTransport:
             replay_store if replay_store is not None else ReplayStore()
         )
         self._auth_token = _validate_auth_token(auth_token)
+        self._auth_clients = _validate_state_clients(auth_clients, argument="auth_clients")
+        if self._auth_token is not None and self._auth_clients is not None:
+            raise ValueError("auth_token and auth_clients cannot be combined")
 
     def __call__(self, method, path, payload, headers=None):
-        if self._auth_token is not None:
-            expected = "Bearer " + self._auth_token
+        if self._auth_token is not None or self._auth_clients is not None:
             presented = headers.get("Authorization") if isinstance(
                 headers, dict
             ) else None
-            if not isinstance(presented, str) or not secrets.compare_digest(
-                presented, expected
-            ):
+            status, _client = _check_state_auth(
+                presented, token=self._auth_token,
+                clients=self._auth_clients, method=method, path=path,
+            )
+            if status == 401:
                 return 401, {"detail": "state backend requires authentication"}
+            if status == 403:
+                return 403, {"detail": "state client lacks the required scope"}
         payload = payload or {}
         try:
             if method == "GET" and path == "/state/revocations":
@@ -297,9 +396,15 @@ class _RemoteBase:
             raise RemoteStateError(
                 "shared state backend call failed: %s" % exc
             ) from exc
-        if status in (401, 403):
+        if status == 401:
             raise RemoteStateError(
                 "shared state backend rejected authentication "
+                "(status %r) for %s %s" % (status, method, path)
+            )
+        if status == 403:
+            raise RemoteStateError(
+                "shared state backend accepted the token but the "
+                "client lacks the scope for this call "
                 "(status %r) for %s %s" % (status, method, path)
             )
         if status == 422:

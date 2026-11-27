@@ -455,6 +455,43 @@ def main():
             "(unauthenticated)"
         )
 
+    # Per-client state tokens: the backend now knows two named
+    # clients. The writer can read and revoke; the reader can only
+    # read, so it sees the writer's revocation but its own attempt
+    # to revoke is refused with a scope error, and it changes no
+    # state. Each client carries only its own token.
+    clients = {
+        "machine-writer": {
+            "token": "writer-token", "scopes": ["read", "write"],
+        },
+        "machine-reader": {
+            "token": "reader-token", "scopes": ["read"],
+        },
+    }
+    scoped_backend = InProcessTransport(auth_clients=clients)
+    writer = RemoteRevocationList(
+        transport=scoped_backend, auth_token="writer-token"
+    )
+    reader = RemoteRevocationList(
+        transport=scoped_backend, auth_token="reader-token"
+    )
+    writer.revoke_credential(remote, reason="reported stolen")
+    ok, reason = verify_credential(
+        public_key, remote, revoked_ids=reader
+    )
+    print(
+        "20. Per-client state (reader token): revocation by writer "
+        "read back: %s" % verdict(ok, reason)
+    )
+    try:
+        reader.revoke_credential(remote, reason="reader should not")
+        print("20. Per-client state (reader revokes): ACCEPTED (ok)")
+    except RemoteStateError:
+        print(
+            "20. Per-client state (reader revokes): REJECTED "
+            "(forbidden)"
+        )
+
 
 if __name__ == "__main__":
     main()

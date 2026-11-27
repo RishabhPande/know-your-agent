@@ -38,6 +38,8 @@ EXPECTED_LINES = [
     "18. Remote state: revocation on one machine seen on the other: REJECTED (revoked)",
     "19. Authenticated state (correct token): revocation read back: REJECTED (revoked)",
     "19. Authenticated state (no token): REJECTED (unauthenticated)",
+    "20. Per-client state (reader token): revocation by writer read back: REJECTED (revoked)",
+    "20. Per-client state (reader revokes): REJECTED (forbidden)",
 ]
 
 

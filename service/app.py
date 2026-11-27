@@ -33,7 +33,12 @@ Endpoints:
   ``state_token``, every one of these endpoints requires an
   ``Authorization: Bearer <token>`` header and answers 401 without
   it; with no token configured they stay open, like ``/revoke``,
-  for trusted networks only.
+  for trusted networks only. ``create_app()`` may instead take
+  ``state_clients``, a map of named clients each with its own
+  token and scopes (``read`` for GETs and the replay lookup,
+  ``write`` for revoking, check-and-record, and prune): an unknown
+  token is a 401, a known client without the needed scope is a
+  403, and revoking one client's token leaves the others working.
 - ``POST /benchmark``: score a fraud model against KYA-labeled records
   (``{"records": [...], "threshold": 0.5}``), returning the confusion
   matrix, precision, recall, F1, accuracy, and AUC. A malformed record
@@ -91,6 +96,8 @@ import secrets
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
+
+from kya.remote import _check_state_auth, _scope_for_state_request, _validate_state_clients
 
 from kya import (
     FileReplayStore,
@@ -248,7 +255,7 @@ def _replay_kwargs(app, presentation_id):
 def create_app(
     public_key, *, revocations=None, audit=None, audit_public_key=None,
     replay_store=None, revocations_path=None, replay_store_path=None,
-    state_token=None,
+    state_token=None, state_clients=None,
 ):
     """Build the demo service app for one trusted issuer public key.
 
@@ -284,6 +291,13 @@ def create_app(
             ``auth_token``. When omitted, the state endpoints stay
             open, which is only safe on a trusted network. The other
             endpoints are not affected either way.
+        state_clients: an optional per-client alternative to
+            ``state_token``: a dict mapping a client name to
+            ``{"token": ..., "scopes": [...]}``, where scopes are
+            drawn from ``read`` and ``write``. Each machine gets its
+            own token, an unknown token is a 401, and a known client
+            asking for more than its scopes allow is a 403. Cannot
+            be combined with ``state_token``.
 
     Returns a FastAPI app. The app holds no private key material.
     """
@@ -295,6 +309,9 @@ def create_app(
         not isinstance(state_token, str) or not state_token
     ):
         raise ValueError("state_token must be a non-empty string or None")
+    if state_token is not None and state_clients is not None:
+        raise ValueError("state_token and state_clients cannot be combined")
+    state_clients = _validate_state_clients(state_clients)
     app = FastAPI(title="Know Your Agent demo service")
     app.state.public_key = public_key
     if revocations_path is not None:
@@ -314,31 +331,47 @@ def create_app(
         audit_public_key if audit_public_key is not None else public_key
     )
     app.state.state_token = state_token
+    app.state.state_clients = state_clients
 
-    def require_state_token(
-        authorization: str | None = Header(default=None),
-    ):
-        """Guard for the /state/... endpoints, active only with a token.
+    def _require_state_scope(scope):
+        def guard(authorization: str | None = Header(default=None)):
+            """Guard for one /state/... endpoint at one scope.
 
-        With no state_token configured the guard passes everything,
-        preserving the open trusted-network behaviour. With one, the
-        request must carry the exact bearer token; the comparison is
-        constant-time, and a failure is a 401, never a partial answer.
-        """
-        token = app.state.state_token
-        if token is None:
-            return
-        expected = "Bearer " + token
-        if authorization is None or not secrets.compare_digest(
-            authorization, expected
-        ):
-            raise HTTPException(
-                status_code=401,
-                detail="state endpoints require authentication",
-                headers={"WWW-Authenticate": "Bearer"},
+            With no token config the guard passes everything,
+            preserving the open trusted-network behaviour. With a
+            shared token any exact bearer match passes at any scope.
+            With per-client tokens, an unknown token is a 401 and a
+            known client without this endpoint's scope is a 403.
+            Comparisons are constant-time.
+            """
+            token = app.state.state_token
+            clients = app.state.state_clients
+            if token is None and clients is None:
+                return
+            # _check_state_auth works out the scope from method and
+            # path; here the endpoint's scope is known directly, so
+            # present it through a synthetic request shape.
+            method = "GET" if scope == "read" else "POST"
+            path = "/state/replay/lookup" if scope == "read" else "/state/revocations"
+            status, _client = _check_state_auth(
+                authorization, token=token, clients=clients,
+                method=method, path=path,
             )
+            if status == 401:
+                raise HTTPException(
+                    status_code=401,
+                    detail="state endpoints require authentication",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            if status == 403:
+                raise HTTPException(
+                    status_code=403,
+                    detail="state client lacks the required scope",
+                )
+        return guard
 
-    state_auth = [Depends(require_state_token)]
+    state_read = [Depends(_require_state_scope("read"))]
+    state_write = [Depends(_require_state_scope("write"))]
 
     @app.get("/health")
     def health():
@@ -468,16 +501,16 @@ def create_app(
     # service belongs on a trusted network. That limit is stated,
     # not hidden.
 
-    @app.get("/state/revocations", dependencies=state_auth)
+    @app.get("/state/revocations", dependencies=state_read)
     def state_revocations():
         return app.state.revocations.to_dict()
 
-    @app.get("/state/revocations/{credential_id}", dependencies=state_auth)
+    @app.get("/state/revocations/{credential_id}", dependencies=state_read)
     def state_revocation_lookup(credential_id: str):
         entry = app.state.revocations.get(credential_id)
         return {"revoked": entry is not None, "entry": entry}
 
-    @app.post("/state/revocations", dependencies=state_auth)
+    @app.post("/state/revocations", dependencies=state_write)
     def state_revoke(request: StateRevokeRequest):
         try:
             newly = app.state.revocations.revoke(
@@ -492,11 +525,11 @@ def create_app(
             "entry": app.state.revocations.get(request.credential_id),
         }
 
-    @app.get("/state/replay", dependencies=state_auth)
+    @app.get("/state/replay", dependencies=state_read)
     def state_replay():
         return app.state.replay_store.to_dict()
 
-    @app.post("/state/replay/check-and-record", dependencies=state_auth)
+    @app.post("/state/replay/check-and-record", dependencies=state_write)
     def state_check_and_record(request: StateCheckAndRecordRequest):
         try:
             is_new = app.state.replay_store.check_and_record(
@@ -508,7 +541,7 @@ def create_app(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return {"is_new": is_new}
 
-    @app.post("/state/replay/lookup", dependencies=state_auth)
+    @app.post("/state/replay/lookup", dependencies=state_read)
     def state_replay_lookup(request: StateLookupRequest):
         return {
             "seen": app.state.replay_store.is_seen(
@@ -516,7 +549,7 @@ def create_app(
             )
         }
 
-    @app.post("/state/replay/prune", dependencies=state_auth)
+    @app.post("/state/replay/prune", dependencies=state_write)
     def state_replay_prune(request: StatePruneRequest):
         try:
             pruned = app.state.replay_store.prune(

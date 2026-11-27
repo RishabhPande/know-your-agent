@@ -89,6 +89,7 @@ from .replay import (
 )
 from .remote import (
     REMOTE_STATE_VERSION,
+    STATE_SCOPES,
     InProcessTransport,
     RemoteReplayStore,
     RemoteRevocationList,
@@ -115,6 +116,7 @@ __all__ = [
     "FileRevocationList",
     "InProcessTransport",
     "REMOTE_STATE_VERSION",
+    "STATE_SCOPES",
     "RemoteReplayStore",
     "RemoteRevocationList",
     "RemoteStateError",

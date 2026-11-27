@@ -56,6 +56,8 @@ Scope: up to $50 in electronics. Session: 1 hour.
 18. Remote state: revocation on one machine seen on the other: REJECTED (revoked)
 19. Authenticated state (correct token): revocation read back: REJECTED (revoked)
 19. Authenticated state (no token): REJECTED (unauthenticated)
+20. Per-client state (reader token): revocation by writer read back: REJECTED (revoked)
+20. Per-client state (reader revokes): REJECTED (forbidden)
 ```
 
 Run the tests with:
@@ -581,13 +583,22 @@ instead of sending the request bare. `InProcessTransport` takes
 the same `auth_token`. With no token configured, the endpoints
 stay open, exactly as before.
 
-Two honest limits, stated plainly. One shared token is one shared
-identity: it proves a caller knows the secret, not which machine
-it is, and it encrypts nothing, so the token belongs on a
-TLS-protected or trusted network. And the token covers only the
-state contract: the service's other endpoints, like `/revoke`,
-stay unauthenticated, because they are a local demo surface, not
-a deployment API.
+Per-client tokens fix the shared-identity limit. Build the
+service with `state_clients` instead of `state_token`: a map of
+client names to `{"token": ..., "scopes": [...]}`, where `read`
+covers the GET endpoints and the replay lookup and `write` covers
+revoking, check-and-record, and prune. Each remote store still
+presents its own token as `auth_token`; `InProcessTransport`
+takes the same map as `auth_clients`. An unknown token is a 401,
+a known client asking for more than its scopes allow is a 403,
+and both are a `RemoteStateError` on the client. One client's
+token can be rotated or revoked without touching the others.
+
+Two honest limits remain. A token encrypts nothing, so tokens
+belong on a TLS-protected or trusted network. And the tokens
+cover only the state contract: the service's other endpoints,
+like `/revoke`, stay unauthenticated, because they are a local
+demo surface, not a deployment API.
 
 ## FastAPI demo service
 
@@ -743,9 +754,13 @@ token guards the `/state/...` endpoints on the service
 (`state_token` on `create_app`) and is presented by the remote
 stores (`auth_token`), with a 401 on the service and a
 `RemoteStateError` on the client when it is missing or wrong.
-The next loop has no committed candidate yet. Production
-authentication and merchant integration remain outside this
-demo's guarantees.
+Per-client state tokens shipped 2026-11-27: `state_clients` on
+`create_app` (and `auth_clients` on `InProcessTransport`) give
+each named client its own token and read or write scopes, with a
+401 for an unknown token and a 403 for a known client outside
+its scopes; demo step 20. The next loop has no committed
+candidate yet. Production authentication and merchant
+integration remain outside this demo's guarantees.
 
 ## License
 
